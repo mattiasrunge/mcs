@@ -11,6 +11,7 @@ const tmp = require("tmp");
 const fs = require("fs-extra-promise");
 const uuid = require("node-uuid");
 const path = require("path");
+const file = require("../lib/file");
 
 // Create mocha-functions which deals with generators
 function mochaGen(originalFn) {
@@ -64,7 +65,7 @@ describe("Test", function() {
          yield fs.removeAsync(configuration.cachePath);
     });
 
-    describe("Client", function() {
+    describe("Setup", function() {
         it("should connect", function*() {
             yield api.connect({
                 hostname: "localhost",
@@ -77,8 +78,10 @@ describe("Test", function() {
 
             assert.ok(result);
         });
+    });
 
-        it("should add a file", function*() {
+    describe("Image2Image", function() {
+        it("should resize a file with only width set", function*() {
             let filename = path.resolve(__dirname, "data/image1.png");
             let id = uuid.v4();
 
@@ -88,8 +91,47 @@ describe("Test", function() {
             });
 
             let exists = yield fs.existsAsync(result);
-
             assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 9);
+        });
+
+        it("should resize a file with width and height set", function*() {
+            let filename = path.resolve(__dirname, "data/image1.png");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 30
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 30);
+        });
+
+        it("should resize a file with width and height equal", function*() {
+            let filename = path.resolve(__dirname, "data/image1.png");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 20
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 20);
         });
     });
 });
