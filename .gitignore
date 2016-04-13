@@ -1,0 +1,9 @@
+node_modules
+conf/config.json
+*.png
+*.mp3
+*.ogg
+*.avi
+*.mkv
+*.mov
+
