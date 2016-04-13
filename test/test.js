@@ -41,7 +41,7 @@ before = mochaGen(mocha.before); // jshint ignore:line
 after = mochaGen(mocha.after); // jshint ignore:line
 
 describe("Test", function() {
-    this.timeout(10000);
+    this.timeout(20000);
 
     before(function*() {
         let tmpobj = tmp.dirSync();
@@ -132,6 +132,142 @@ describe("Test", function() {
             let size = yield file.getSize(result);
             assert.equal(size.width, 20);
             assert.equal(size.height, 20);
+        });
+    });
+
+    describe("Video2Image", function() {
+        it("should resize a file with only width set", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 15);
+        });
+
+        it("should resize a file with width and height set", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 30
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 30);
+        });
+
+        it("should resize a file with width and height equal", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 20
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 20);
+        });
+    });
+
+    describe("Video2Video", function() {
+        it("should convert a file", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "video"
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+        });
+
+        it("should resize a file with only width set", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "video",
+                width: 20
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 15);
+        });
+
+        it("should resize a file with width and height set", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "video",
+                width: 20,
+                height: 30
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 30);
+        });
+
+        it("should resize a file with width and height equal", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "video",
+                width: 20,
+                height: 20
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 20);
+        });
+    });
+
+    describe("Audio2Audio", function() {
+        it("should convert a file", function*() {
+            let filename = path.resolve(__dirname, "data/audio1.mp3");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "audio"
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
         });
     });
 });
