@@ -13,7 +13,7 @@ test: $(DEPS)
 	ls -l
 	ls -l ./test
 	ls -l ./test/data
-	wget -q -k https://placehold.it/350x150 -O ./test/data/image1.png
+	wget https://placehold.it/350x150 -O ./test/data/image1.png
 	./node_modules/.bin/mocha $(DEFAULT_FLAGS)
 
 lint: $(DEPS)
