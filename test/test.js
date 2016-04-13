@@ -62,7 +62,7 @@ describe("Test", function() {
     after(function*() {
         yield main.stop();
 
-         yield fs.removeAsync(configuration.cachePath);
+        yield fs.removeAsync(configuration.cachePath);
     });
 
     describe("Setup", function() {
