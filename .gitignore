@@ -1,6 +1,7 @@
 node_modules
 conf/config.json
 *.png
+*.jpg
 *.mp3
 *.ogg
 *.avi
