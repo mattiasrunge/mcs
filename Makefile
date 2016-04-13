@@ -9,6 +9,10 @@ deps:
 	npm --cache ./node_modules/.npm-cache install
 
 test: $(DEPS)
+	pwd
+	ls -l
+	ls -l ./test
+	ls -l ./test/data
 	wget -q -k https://placehold.it/350x150 -O ./test/data/image1.png
 	./node_modules/.bin/mocha $(DEFAULT_FLAGS)
 
