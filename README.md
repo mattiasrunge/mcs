@@ -6,5 +6,5 @@ A server to transform video, images and audio files into versions suitible for t
 
 ## Dependencies
 ```bash
-sudo aptitude install libimage-exiftool-perl ffmpeg imagemagick
+sudo aptitude install libimage-exiftool-perl libav-tools imagemagick
 ```
