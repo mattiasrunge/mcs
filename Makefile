@@ -9,11 +9,7 @@ deps:
 	npm --cache ./node_modules/.npm-cache install
 
 test: $(DEPS)
-	pwd
-	ls -l
-	ls -l ./test
-	ls -l ./test/data
-	wget https://placehold.it/350x150 -O ./test/data/image1.png
+	wget http://lorempixel.com/350/150 -O ./test/data/image1.jpg
 	./node_modules/.bin/mocha $(DEFAULT_FLAGS)
 
 lint: $(DEPS)

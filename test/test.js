@@ -82,7 +82,7 @@ describe("Test", function() {
 
     describe("Image2Image", function() {
         it("should resize a file with only width set", function*() {
-            let filename = path.resolve(__dirname, "data/image1.png");
+            let filename = path.resolve(__dirname, "data/image1.jpg");
             let id = uuid.v4();
 
             let result = yield api.cache.get(id, filename, {
@@ -99,7 +99,7 @@ describe("Test", function() {
         });
 
         it("should resize a file with width and height set", function*() {
-            let filename = path.resolve(__dirname, "data/image1.png");
+            let filename = path.resolve(__dirname, "data/image1.jpg");
             let id = uuid.v4();
 
             let result = yield api.cache.get(id, filename, {
@@ -117,7 +117,7 @@ describe("Test", function() {
         });
 
         it("should resize a file with width and height equal", function*() {
-            let filename = path.resolve(__dirname, "data/image1.png");
+            let filename = path.resolve(__dirname, "data/image1.jpg");
             let id = uuid.v4();
 
             let result = yield api.cache.get(id, filename, {
