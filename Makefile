@@ -6,7 +6,7 @@ all: test lint style
 
 deps:
 	npm set progress=false
-	npm --cache ./node_modules/.npm-cache install
+	npm install
 
 test: $(DEPS)
 	wget http://lorempixel.com/350/150 -O ./test/data/image1.jpg
