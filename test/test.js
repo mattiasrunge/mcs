@@ -1,17 +1,17 @@
 "use strict";
 
+const path = require("path");
 const mocha = require("mocha");
 const co = require("co");
+const uuid = require("node-uuid");
+const getPort = require("get-port");
+const fs = require("fs-extra-promise");
 const assert = require("chai").assert;
+const api = require("api.io").client;
 const main = require("../lib/main");
 const configuration = require("../lib/configuration");
-const api = require("api.io").client;
-const getPort = require("get-port");
-const tmp = require("tmp");
-const fs = require("fs-extra-promise");
-const uuid = require("node-uuid");
-const path = require("path");
 const file = require("../lib/file");
+const utils = require("../lib/utils");
 
 // Create mocha-functions which deals with generators
 function mochaGen(originalFn) {
@@ -44,12 +44,10 @@ describe("Test", function() {
     this.timeout(20000);
 
     before(function*() {
-        let tmpobj = tmp.dirSync();
-
         let args = {
-            level: false,
+            level: "debug",
             config: "test/data/config.json",
-            cachePath: tmpobj.name,
+            cachePath: yield utils.createTmpDir(),
             port: yield getPort(),
             keys: [ "secret key" ]
         };
