@@ -47,7 +47,7 @@ describe("Test", function() {
         let tmpobj = tmp.dirSync();
 
         let args = {
-            level: "debug",
+            level: false,
             config: "test/data/config.json",
             cachePath: tmpobj.name,
             port: yield getPort(),
@@ -77,6 +77,44 @@ describe("Test", function() {
             let result = yield api.cache.authenticate("secret key");
 
             assert.ok(result);
+        });
+    });
+
+    describe("File", function() {
+        it("should return the size of a file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let size = yield file.getSize(filename);
+
+            assert.equal(size.width, 350);
+            assert.equal(size.height, 150);
+        });
+
+        it("should return the mimetype of a file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let mimetype = yield file.getMimetype(filename);
+
+            assert.equal(mimetype, "image/jpeg");
+        });
+
+        it("should return the exif data of a file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let exif = yield file.getExif(filename);
+
+            assert.equal(exif.FileName, "image1.jpg");
+            assert.equal(exif.FileType, "JPEG");
+            assert.equal(exif.MIMEType, "image/jpeg");
+            assert.equal(exif.JFIFVersion, "1 1");
+            assert.equal(exif.ResolutionUnit, 0);
+            assert.equal(exif.XResolution, 1);
+            assert.equal(exif.YResolution, 1);
+            assert.equal(exif.Comment, "CREATOR: gd-jpeg v1.0 (using IJG JPEG v62), default quality\n");
+            assert.equal(exif.ImageWidth, 350);
+            assert.equal(exif.ImageHeight, 150);
+            assert.equal(exif.EncodingProcess, 0);
+            assert.equal(exif.BitsPerSample, 8);
+            assert.equal(exif.ColorComponents, 3);
+            assert.equal(exif.YCbCrSubSampling, "2 2");
+            assert.equal(exif.ImageSize, "350x150");
         });
     });
 
@@ -132,6 +170,59 @@ describe("Test", function() {
             let size = yield file.getSize(result);
             assert.equal(size.width, 20);
             assert.equal(size.height, 20);
+        });
+
+        it("should rotate a file 90 degrees", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                angle: 90
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 150);
+            assert.equal(size.height, 350);
+        });
+
+        it("should mirror a file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                mirror: true
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 350);
+            assert.equal(size.height, 150);
+        });
+
+        it("should rotate and resize a file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "image",
+                angle: 90,
+                width: 75,
+                height: 175
+            });
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 75);
+            assert.equal(size.height, 175);
         });
     });
 

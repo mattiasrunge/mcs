@@ -7,4 +7,5 @@ conf/config.json
 *.avi
 *.mkv
 *.mov
-
+*.mp4
+*.webm
