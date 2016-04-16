@@ -101,17 +101,6 @@ describe("Test", function() {
             assert.equal(exif.FileName, "image1.jpg");
             assert.equal(exif.FileType, "JPEG");
             assert.equal(exif.MIMEType, "image/jpeg");
-            assert.equal(exif.JFIFVersion, "1 1");
-            assert.equal(exif.ResolutionUnit, 0);
-            assert.equal(exif.XResolution, 1);
-            assert.equal(exif.YResolution, 1);
-            assert.equal(exif.Comment, "CREATOR: gd-jpeg v1.0 (using IJG JPEG v62), default quality\n");
-            assert.equal(exif.ImageWidth, 350);
-            assert.equal(exif.ImageHeight, 150);
-            assert.equal(exif.EncodingProcess, 0);
-            assert.equal(exif.BitsPerSample, 8);
-            assert.equal(exif.ColorComponents, 3);
-            assert.equal(exif.YCbCrSubSampling, "2 2");
             assert.equal(exif.ImageSize, "350x150");
         });
     });
