@@ -14,7 +14,7 @@ const file = require("../lib/file");
 const utils = require("../lib/utils");
 
 // Create mocha-functions which deals with generators
-function mochaGen(originalFn) {
+const mochaGen = (originalFn) => {
     return (text, fn) => {
         fn = typeof text === "function" ? text : fn;
 
@@ -33,7 +33,7 @@ function mochaGen(originalFn) {
             originalFn(text, fn);
         }
     };
-}
+};
 
 // Override mocha, we get W020 lint warning which we ignore since it works...
 it = mochaGen(mocha.it); // jshint ignore:line
@@ -63,7 +63,7 @@ describe("Test", function() {
         yield fs.removeAsync(configuration.cachePath);
     });
 
-    describe("Setup", function() {
+    describe("Setup", () => {
         it("should connect", function*() {
             yield api.connect({
                 hostname: "localhost",
@@ -78,7 +78,7 @@ describe("Test", function() {
         });
     });
 
-    describe("File", function() {
+    describe("File", () => {
         it("should return the size of a file", function*() {
             let filename = path.resolve(__dirname, "data/image1.jpg");
             let size = yield file.getSize(filename);
@@ -103,9 +103,41 @@ describe("Test", function() {
             assert.equal(exif.MIMEType, "image/jpeg");
             assert.equal(exif.ImageSize, "350x150");
         });
+
+        it("should return the metadata for an image file", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let metadata = yield api.cache.getMetadata(filename);
+
+            assert.equal(metadata.name, "image1.jpg");
+            assert.equal(metadata.type, "image");
+            assert.equal(metadata.mimetype, "image/jpeg");
+            assert.equal(metadata.width, 350);
+            assert.equal(metadata.height, 150);
+            assert.equal(metadata.rawImage, false);
+        });
+
+        it("should return the metadata for a video file", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let metadata = yield api.cache.getMetadata(filename);
+
+            assert.equal(metadata.name, "video1.mp4");
+            assert.equal(metadata.type, "video");
+            assert.equal(metadata.mimetype, "video/mp4");
+            assert.equal(metadata.width, 320);
+            assert.equal(metadata.height, 240);
+        });
+
+        it("should return the metadata for an audio file", function*() {
+            let filename = path.resolve(__dirname, "data/audio1.mp3");
+            let metadata = yield api.cache.getMetadata(filename);
+
+            assert.equal(metadata.name, "audio1.mp3");
+            assert.equal(metadata.type, "audio");
+            assert.equal(metadata.mimetype, "audio/mpeg");
+        });
     });
 
-    describe("Image2Image", function() {
+    describe("Image2Image", () => {
         it("should resize a file with only width set", function*() {
             let filename = path.resolve(__dirname, "data/image1.jpg");
             let id = uuid.v4();
@@ -213,7 +245,7 @@ describe("Test", function() {
         });
     });
 
-    describe("Video2Image", function() {
+    describe("Video2Image", () => {
         it("should resize a file with only width set", function*() {
             let filename = path.resolve(__dirname, "data/video1.mp4");
             let id = uuid.v4();
@@ -268,7 +300,7 @@ describe("Test", function() {
         });
     });
 
-    describe("Video2Video", function() {
+    describe("Video2Video", () => {
         it("should convert a file", function*() {
             let filename = path.resolve(__dirname, "data/video1.mp4");
             let id = uuid.v4();
@@ -335,7 +367,7 @@ describe("Test", function() {
         });
     });
 
-    describe("Audio2Audio", function() {
+    describe("Audio2Audio", () => {
         it("should convert a file", function*() {
             let filename = path.resolve(__dirname, "data/audio1.mp3");
             let id = uuid.v4();
@@ -346,6 +378,33 @@ describe("Test", function() {
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
+        });
+    });
+
+    describe("Remove", () => {
+        it("should create two files and then remove them", function*() {
+            let filename = path.resolve(__dirname, "data/image1.jpg");
+            let id = uuid.v4();
+
+            let result1 = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 20
+            });
+
+            let result2 = yield api.cache.get(id, filename, {
+                type: "image",
+                width: 30
+            });
+
+            assert.isOk(yield fs.existsAsync(result1));
+            assert.isOk(yield fs.existsAsync(result2));
+
+            let result = yield api.cache.remove([ id ]);
+
+            assert.equal(result, 2);
+
+            assert.isNotOk(yield fs.existsAsync(result1));
+            assert.isNotOk(yield fs.existsAsync(result2));
         });
     });
 });
