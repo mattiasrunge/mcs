@@ -72,7 +72,7 @@ describe("Test", function() {
         });
 
         it("should authenticate", function*() {
-            let result = yield api.cache.authenticate("secret key");
+            let result = yield api.auth.identify("secret key");
 
             assert.ok(result);
         });
@@ -106,7 +106,7 @@ describe("Test", function() {
 
         it("should return the metadata for an image file", function*() {
             let filename = path.resolve(__dirname, "data/image1.jpg");
-            let metadata = yield api.cache.getMetadata(filename);
+            let metadata = yield api.metadata.get(filename);
 
             assert.equal(metadata.name, "image1.jpg");
             assert.equal(metadata.type, "image");
@@ -118,7 +118,7 @@ describe("Test", function() {
 
         it("should return the metadata for a video file", function*() {
             let filename = path.resolve(__dirname, "data/video1.mp4");
-            let metadata = yield api.cache.getMetadata(filename);
+            let metadata = yield api.metadata.get(filename);
 
             assert.equal(metadata.name, "video1.mp4");
             assert.equal(metadata.type, "video");
@@ -129,7 +129,7 @@ describe("Test", function() {
 
         it("should return the metadata for an audio file", function*() {
             let filename = path.resolve(__dirname, "data/audio1.mp3");
-            let metadata = yield api.cache.getMetadata(filename);
+            let metadata = yield api.metadata.get(filename);
 
             assert.equal(metadata.name, "audio1.mp3");
             assert.equal(metadata.type, "audio");
