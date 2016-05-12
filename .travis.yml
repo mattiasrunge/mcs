@@ -1,4 +1,6 @@
-before_script: "sudo aptitude -y -q install libimage-exiftool-perl libav-tools file"
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get -y install libimage-exiftool-perl libav-tools file
 language: node_js
 node_js:
-  - "5"
+  - 5
