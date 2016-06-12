@@ -1,7 +1,6 @@
 "use strict";
 
 const path = require("path");
-const uuid = require("node-uuid");
 const getPort = require("get-port");
 const fs = require("fs-extra-promise");
 const assert = require("chai").assert;
