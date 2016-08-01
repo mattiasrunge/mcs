@@ -53,6 +53,5 @@ describe("Face", function() {
             assert.equal(list[0].w, 210);
             assert.equal(list[0].h, 210);
         });
-
     });
 });
