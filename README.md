@@ -6,5 +6,4 @@ A server to transform video, images and audio files into versions suitable for t
 
 ## Dependencies
 ```bash
-sudo apt-get install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev g++ libgroove-dev libpng-dev zlib1g-dev
-```
+sudo apt-get install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc

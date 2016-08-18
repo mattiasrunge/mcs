@@ -9,3 +9,4 @@ conf/config.json
 *.mov
 *.mp4
 *.webm
+bin/waveform

@@ -8,7 +8,10 @@ AUDIO := ./test/data/audio1.mp3
 
 all: test lint style
 
-deps:
+waveform:
+	gcc -I/usr/local/include/ffmpeg -L/usr/local/lib/ffmpeg -I/usr/local/include -L/usr/local/lib -o ./bin/waveform ./src/main.c -Wall -g -O3 -lavcodec -lavutil -lavformat -lpng -lm
+
+deps: waveform
 	npm set progress=false
 	npm install
 
@@ -31,4 +34,4 @@ style: $(DEPS)
 	./node_modules/.bin/jscs -e --verbose $(SRC)
 
 
-.PHONY: all deps test lint style
+.PHONY: all deps test lint style waveform
