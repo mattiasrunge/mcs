@@ -2,7 +2,8 @@ sudo: required
 dist: trusty
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get -y install libimage-exiftool-perl libav-tools file libopencv-dev
+  - sudo apt-get -y install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev g++ libgroove-dev libpng-dev zlib1g-dev
 language: node_js
 node_js:
   - 5
+  - 6
