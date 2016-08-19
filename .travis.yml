@@ -5,5 +5,4 @@ before_install:
   - sudo apt-get -y install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc
 language: node_js
 node_js:
-  - 5
   - 6

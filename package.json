@@ -33,7 +33,7 @@
     "get-port": "2.1.0"
   },
   "engines": {
-    "node": ">= 0.5.10"
+    "node": ">= 6.3.1"
   },
   "scripts": {
     "test": "make all"
