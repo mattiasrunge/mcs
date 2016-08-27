@@ -6,7 +6,6 @@ const api = require("api.io").client;
 const main = require("../lib/main");
 const configuration = require("../lib/configuration");
 
-chai.use(require("chai-datetime"));
 require("../lib/test");
 const assert = chai.assert;
 
