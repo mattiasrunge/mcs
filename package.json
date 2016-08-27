@@ -36,7 +36,7 @@
   "main": "./bin/mcs",
   "license": "GPL-2.0",
   "bugs": {
-    "url": "https://github.com/mattiasrunge/api.io/issues"
+    "url": "https://github.com/mattiasrunge/mcs/issues"
   },
-  "homepage": "https://github.com/mattiasrunge/api.io#readme"
+  "homepage": "https://github.com/mattiasrunge/mcs#readme"
 }
