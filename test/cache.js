@@ -13,19 +13,22 @@ const utils = require("../lib/utils");
 
 require("../lib/test");
 
+let cachePath;
+
 describe("Cache", function() {
     this.timeout(20000);
 
     before(function*() {
+        cachePath = yield utils.createTmpDir();
+
         let args = {
             level: "debug",
             config: "test/data/config.json",
-            cachePath: yield utils.createTmpDir(),
             port: yield getPort(),
             keys: [ "secret key" ]
         };
 
-        yield fs.ensureDirAsync(args.cachePath);
+        yield fs.ensureDirAsync(cachePath);
 
         yield main.start(args);
     });
@@ -33,7 +36,7 @@ describe("Cache", function() {
     after(function*() {
         yield main.stop();
 
-        yield fs.removeAsync(configuration.cachePath);
+        yield fs.removeAsync(cachePath);
     });
 
     describe("Setup", () => {
@@ -59,7 +62,7 @@ describe("Cache", function() {
             let result = yield api.cache.get(id, filename, {
                 type: "image",
                 width: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -77,7 +80,7 @@ describe("Cache", function() {
                 type: "image",
                 width: 20,
                 height: 30
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -95,7 +98,7 @@ describe("Cache", function() {
                 type: "image",
                 width: 20,
                 height: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -112,7 +115,7 @@ describe("Cache", function() {
             let result = yield api.cache.get(id, filename, {
                 type: "image",
                 angle: 90
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -129,7 +132,7 @@ describe("Cache", function() {
             let result = yield api.cache.get(id, filename, {
                 type: "image",
                 mirror: true
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -148,7 +151,7 @@ describe("Cache", function() {
                 angle: 90,
                 width: 75,
                 height: 175
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -167,7 +170,7 @@ describe("Cache", function() {
             let result = yield api.cache.get(id, filename, {
                 type: "image",
                 width: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -185,7 +188,7 @@ describe("Cache", function() {
                 type: "image",
                 width: 20,
                 height: 30
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -203,7 +206,7 @@ describe("Cache", function() {
                 type: "image",
                 width: 20,
                 height: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -221,7 +224,7 @@ describe("Cache", function() {
 
             let result = yield api.cache.get(id, filename, {
                 type: "video"
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -234,7 +237,7 @@ describe("Cache", function() {
             let result = yield api.cache.get(id, filename, {
                 type: "video",
                 width: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -252,7 +255,7 @@ describe("Cache", function() {
                 type: "video",
                 width: 20,
                 height: 30
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -270,7 +273,7 @@ describe("Cache", function() {
                 type: "video",
                 width: 20,
                 height: 20
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -288,7 +291,7 @@ describe("Cache", function() {
 
             let result = yield api.cache.get(id, filename, {
                 type: "audio"
-            });
+            }, cachePath);
 
             let exists = yield fs.existsAsync(result);
             assert.isOk(exists);
@@ -303,17 +306,17 @@ describe("Cache", function() {
             let result1 = yield api.cache.get(id, filename, {
                 type: "image",
                 width: 20
-            });
+            }, cachePath);
 
             let result2 = yield api.cache.get(id, filename, {
                 type: "image",
                 width: 30
-            });
+            }, cachePath);
 
             assert.isOk(yield fs.existsAsync(result1));
             assert.isOk(yield fs.existsAsync(result2));
 
-            let result = yield api.cache.remove([ id ]);
+            let result = yield api.cache.remove([ id ], cachePath);
 
             assert.equal(result, 2);
 
