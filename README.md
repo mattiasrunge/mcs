@@ -10,7 +10,7 @@ MCS requires a few tools that it uses to get image metadata, resize images etc. 
 This will require a newer Ubuntu (or derivative) than trusty (14.04).
 
 ```bash
-sudo apt-get install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc
+sudo apt-get install libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc unoconv
 
 git clone https://github.com/mattiasrunge/mcs
 
