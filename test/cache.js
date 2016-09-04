@@ -19,8 +19,6 @@ describe("Cache", function() {
     this.timeout(20000);
 
     before(function*() {
-        cachePath = yield utils.createTmpDir();
-
         let args = {
             level: "debug",
             config: "test/data/config.json",
@@ -28,9 +26,10 @@ describe("Cache", function() {
             keys: [ "secret key" ]
         };
 
-        yield fs.ensureDirAsync(cachePath);
-
         yield main.start(args);
+
+        cachePath = yield utils.createTmpDir();
+        yield fs.ensureDirAsync(cachePath);
     });
 
     after(function*() {
