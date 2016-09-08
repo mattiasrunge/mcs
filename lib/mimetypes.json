@@ -26,7 +26,8 @@
         "video/mp4",
         "video/3gpp",
         "video/x-msvideo",
-        "video/m2ts"
+        "video/m2ts",
+        "video/x-matroska"
     ],
     "audio": [
         "audio/mpeg",
