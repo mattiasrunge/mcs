@@ -4,7 +4,8 @@
         "image/x-raw",
         "image/x-canon-crw",
         "image/x-nikon-nef",
-        "image/CR2"
+        "image/CR2",
+        "image/x-panasonic-rw2"
     ],
     "image": [
         "image/jpeg",
@@ -16,7 +17,8 @@
         "image/x-raw",
         "image/x-canon-crw",
         "image/x-nikon-nef",
-        "image/CR2"
+        "image/CR2",
+        "image/x-panasonic-rw2"
     ],
     "video": [
         "video/mpeg",
