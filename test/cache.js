@@ -176,7 +176,7 @@ describe("Cache", function() {
 
             let size = yield file.getSize(result);
             assert.equal(size.width, 20);
-            assert.equal(size.height, 15);
+            assert.equal(size.height, 11);
         });
 
         it("should resize a file with width and height set", function*() {
@@ -243,7 +243,7 @@ describe("Cache", function() {
 
             let size = yield file.getSize(result);
             assert.equal(size.width, 20);
-            assert.equal(size.height, 15);
+            assert.equal(size.height, 11);
         });
 
         it("should resize a file with width and height set", function*() {
@@ -295,8 +295,8 @@ describe("Cache", function() {
             assert.isOk(exists);
 
             let size = yield file.getSize(result);
-            assert.equal(size.width, 240);
-            assert.equal(size.height, 320);
+            assert.equal(size.width, 320);
+            assert.equal(size.height, 560);
         });
     });
 

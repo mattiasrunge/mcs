@@ -1,12 +1,3 @@
 node_modules
 conf/config.json
-*.png
-*.jpg
-*.mp3
-*.ogg
-*.avi
-*.mkv
-*.mov
-*.mp4
-*.webm
 bin/waveform
