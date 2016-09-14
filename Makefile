@@ -12,6 +12,7 @@ waveform:
 	gcc -I/usr/local/include/ffmpeg -L/usr/local/lib/ffmpeg -I/usr/local/include -L/usr/local/lib -o ./bin/waveform ./src/main.c -Wall -g -O3 -lavcodec -lavutil -lavformat -lpng -lm
 
 req:
+	alias python="/usr/bin/python3"
 	sudo apt-get install -y libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc unoconv
 
 deps: waveform

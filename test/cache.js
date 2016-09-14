@@ -281,6 +281,23 @@ describe("Cache", function() {
             assert.equal(size.width, 20);
             assert.equal(size.height, 20);
         });
+
+        it("should rotate a video", function*() {
+            let filename = path.resolve(__dirname, "data/video1.mp4");
+            let id = uuid.v4();
+
+            let result = yield api.cache.get(id, filename, {
+                type: "video",
+                angle: 90
+            }, cachePath);
+
+            let exists = yield fs.existsAsync(result);
+            assert.isOk(exists);
+
+            let size = yield file.getSize(result);
+            assert.equal(size.width, 240);
+            assert.equal(size.height, 320);
+        });
     });
 
     describe("Audio2Audio", () => {
