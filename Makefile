@@ -12,7 +12,6 @@ waveform:
 	gcc -I/usr/local/include/ffmpeg -L/usr/local/lib/ffmpeg -I/usr/local/include -L/usr/local/lib -o ./bin/waveform ./src/main.c -Wall -g -O3 -lavcodec -lavutil -lavformat -lpng -lm
 
 req:
-	alias python="/usr/bin/python3"
 	sudo apt-get install -y libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libopencv-dev libpng-dev g++ gcc unoconv
 
 deps: waveform
@@ -29,6 +28,7 @@ $(AUDIO):
 	wget http://www.sample-videos.com/audio/mp3/crowd-cheering.mp3 -O $@
 
 test: $(DEPS) $(IMAGE) $(VIDEO) $(AUDIO)
+	alias python="/usr/bin/python3"
 	./node_modules/.bin/mocha $(DEFAULT_FLAGS)
 
 lint: $(DEPS)
