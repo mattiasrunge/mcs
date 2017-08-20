@@ -11,6 +11,7 @@
     "api.io": "0.2.9",
     "bluebird": "3.4.3",
     "checksum": "0.1.1",
+    "eslint": "^3.7.0",
     "fs-extra-promise": "0.4.0",
     "glob-promise": "1.0.6",
     "koa": "1.2.1",

@@ -1,9 +1,9 @@
 "use strict";
 
-let path = require("path");
-let main = require("./lib/main");
-let packageData = require("./package.json");
-let argv = require("yargs")
+const path = require("path");
+const main = require("./lib/main");
+const packageData = require("./package.json");
+const argv = require("yargs")
 .usage("Usage: $0 -c [config]")
 .example("$0 -c ./conf/config.json", "Start server with specific configuration file")
 .help("help")
