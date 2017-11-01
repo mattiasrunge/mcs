@@ -29,7 +29,8 @@
         "video/3gpp",
         "video/x-msvideo",
         "video/m2ts",
-        "video/x-matroska"
+        "video/x-matroska",
+        "video/x-m4v"
     ],
     "audio": [
         "audio/mpeg",
@@ -44,6 +45,7 @@
         "application/pdf",
         "text/plain",
         "text/html",
+        "application/xml",
         "application/vnd.ms-excel",
         "application/msword",
         "application/vnd.ms-powerpoint",
