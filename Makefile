@@ -8,7 +8,7 @@ waveform:
 	gcc -I/usr/local/include/ffmpeg -L/usr/local/lib/ffmpeg -I/usr/local/include -L/usr/local/lib -o ./bin/waveform ./src/main.c -Wall -g -O3 -lavcodec -lavutil -lavformat -lpng -lm
 
 req:
-	sudo apt-get install -y libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libpng-dev g++ gcc unoconv libopenblas-dev cmake
+	sudo apt-get install -y libimage-exiftool-perl libav-tools imagemagick file ufraw-batch libpng-dev libavformat-dev g++ gcc unoconv libopenblas-dev cmake
 
 deps: waveform
 	npm set progress=false
