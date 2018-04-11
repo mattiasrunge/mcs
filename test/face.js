@@ -2,6 +2,7 @@
 
 /* global describe before after it */
 
+const path = require("path");
 const getPort = require("get-port");
 const assert = require("assert");
 const api = require("api.io/api.io-client");
@@ -44,7 +45,8 @@ describe("Face", function() {
 
     describe("Detect", () => {
         it("should detect faces", async () => {
-            const list = await api.face.detect("node_modules/opencv/examples/files/mona.png");
+            const filename = path.resolve(__dirname, "data/mona.jpg");
+            const list = await api.face.detect(filename);
 
             assert.equal(list.length, 1);
             assert(list[0].confidence > 1);
