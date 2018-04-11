@@ -10,7 +10,7 @@ const argv = require("yargs")
 .strict()
 .option("c", {
     alias: "config",
-    default: path.relative(__dirname, "conf/config.json"),
+    default: path.relative(__dirname, path.join("conf", "config.json")),
     describe: "Configuration file",
     type: "string"
 })
@@ -26,7 +26,7 @@ process
 .on("SIGTERM", () => { main.stop().then(process.exit); });
 
 main.start(argv, packageData.version)
-.catch(function(error) {
+.catch((error) => {
     console.error("FATAL ERROR");
     console.error(error);
     console.error(error.stack);
