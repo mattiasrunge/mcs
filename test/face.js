@@ -50,10 +50,10 @@ describe("Face", function() {
 
             assert.equal(list.length, 1);
             assert(list[0].confidence > 1);
-            assert.equal(list[0].x, 227);
-            assert.equal(list[0].y, 191);
-            assert.equal(list[0].w, 206);
-            assert.equal(list[0].h, 204);
+            assert.equal(list[0].x, 0.455);
+            assert.equal(list[0].y, 0.25265);
+            assert.equal(list[0].w, 0.411);
+            assert.equal(list[0].h, 0.26984);
         });
     });
 });
