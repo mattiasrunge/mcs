@@ -315,6 +315,61 @@ describe("Cache", function() {
         });
     });
 
+    describe("Audio2Image", () => {
+        it("should resize a file with only width set", async () => {
+            const filename = path.resolve(__dirname, "data/audio1.mp3");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image",
+                width: 20
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+
+            const size = await file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 15);
+        });
+
+        it("should resize a file with width and height set", async () => {
+            const filename = path.resolve(__dirname, "data/audio1.mp3");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 30
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+
+            const size = await file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 30);
+        });
+
+        it("should resize a file with width and height equal", async () => {
+            const filename = path.resolve(__dirname, "data/audio1.mp3");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image",
+                width: 20,
+                height: 20
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+
+            const size = await file.getSize(result);
+            assert.equal(size.width, 20);
+            assert.equal(size.height, 20);
+        });
+    });
+
     describe("Remove", () => {
         it("should create two files and then remove them", async () => {
             const filename = path.resolve(__dirname, "data/image1.jpg");
