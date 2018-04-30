@@ -1,8 +1,5 @@
 FROM node:10-stretch
 
-# TODO: DNS fix
-# https://stackoverflow.com/questions/24991136/docker-build-could-not-resolve-archive-ubuntu-com-apt-get-fails-to-install-a
-
 # Create app directory
 WORKDIR /usr/src/app
 

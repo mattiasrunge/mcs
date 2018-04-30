@@ -1,43 +1,29 @@
+
 # MCS - Media Cache Server
-A server to transform video, images and audio files into versions suitable for the web.
+A server to transform video, images and audio files into versions suitable for the web. It also gets metadata for media files and runs face detection on images.
 
-
-## Tests
+## CI status
 [![Build Status](https://travis-ci.org/mattiasrunge/mcs.png)](https://travis-ci.org/mattiasrunge/mcs)
 
 ## Installation
 MCS requires a few tools that it uses to get image metadata, resize images etc. So some things must be installed in the system beforehand.
 This will require a newer Ubuntu (or derivative) than trusty (14.04).
+Though the best solution is to use the Docker image.
+
+Default access key is: let-me-in
 
 ```bash
 git clone https://github.com/mattiasrunge/mcs
 cd mcs
-
-# Install Ubuntu packages (will sudo)
-make req
-
-# Install NPM modules
-make deps
+docker build . -t mcs
 ```
 
-## Configuration
-MCS uses a configuration file. There is a sample file available that can be used as a template.
+## Tests
 ```bash
-cp conf/config.json.sample conf/config.json
+docker run -it mcs npm test
 ```
-
-The default configuration looks like this.
-```json
-{
-  "port": 8181,
-  "keys": [ "let-me-in" ]
-}
-```
-
-* port is the HTTP port where the MCS will be available to clients
-* keys is a list of keys that clients can authenticate with
 
 ## Run
 ```bash
-npm start
+docker run -p 8181:8181 --name mcs -v /data/cache:/data/cache -v /data/files:/data/files -it mcs
 ```

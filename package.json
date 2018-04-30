@@ -12,8 +12,7 @@
     "checksum": "^0.1.1",
     "face-recognition": "^0.9.1",
     "server-destroy": "^1.0.1",
-    "uuid": "^3.2.1",
-    "yargs": "^11.1.0"
+    "uuid": "^3.2.1"
   },
   "devDependencies": {
     "fs-extra": "^5.0.0",
@@ -26,7 +25,7 @@
     "node": ">= 10"
   },
   "scripts": {
-    "test": "make all",
+    "test": "mocha --reporter spec --ui tdd --recursive test && eslint $(git ls-files \\*.js)",
     "start": "node index.js"
   },
   "main": "index.js",
