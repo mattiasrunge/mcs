@@ -160,6 +160,15 @@ describe("Cache", function() {
             assert.equal(size.width, 75);
             assert.equal(size.height, 175);
         });
+
+        it("should get all cached versions", async () => {
+            const filename = path.resolve(__dirname, "data/image1.jpg");
+            const id = idCounter - 1;
+
+            const result = await api.cache.getAll(id, filename, "image", cachePath);
+
+            assert.equal(result.length, 1);
+        });
     });
 
     describe("Video2Image", () => {

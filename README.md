@@ -39,5 +39,5 @@ The default configuration looks like this.
 
 ## Run
 ```bash
-./bin/mcs
+npm start
 ```
