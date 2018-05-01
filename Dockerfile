@@ -14,9 +14,19 @@ RUN apt-get update && apt-get install -y \
     unoconv \
     && rm -rf /var/lib/apt/lists/*
 
+# Install dlib
+RUN git clone --branch v19.10 --depth 1 https://github.com/davisking/dlib.git \
+    && cd dlib \
+    && mkdir build \
+    && cd build \
+    && cmake .. -DDLIB_NO_GUI_SUPPORT=1 -DBUILD_SHARED_LIBS=1 \
+    && cmake --build .
+
 # Install app dependencies
 COPY package*.json ./
-RUN npm install
+RUN DLIB_INCLUDE_DIR=/usr/src/app/dlib \
+    DLIB_LIB_DIR=/usr/src/app/dlib/build/dlib \
+    npm install
 
 # Bundle app source
 COPY . .
