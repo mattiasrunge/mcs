@@ -6,16 +6,7 @@ services:
   - docker
 
 before_install:
-  - sudo apt update -y
-  - sudo apt install --only-upgrade docker-ce -y
-  - docker version
   - docker build -t mattiasrunge/mcs .
 
 script:
   - docker run -it mattiasrunge/mcs npm test
-
-after_success:
-  - if [[ "$TRAVIS_BRANCH" == "master" ]]; then
-      docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD hub.docker.com ;
-      docker push mattiasrunge/mcs ;
-    fi
