@@ -6,6 +6,9 @@ services:
   - docker
 
 before_install:
+  - sudo apt update -y
+  - sudo apt install --only-upgrade docker-ce -y
+  - docker version
   - docker build -t mattiasrunge/mcs .
 
 script:
