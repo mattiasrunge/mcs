@@ -19,6 +19,6 @@ docker run -it mcs npm test
 
 ## Run
 ```bash
-docker run -p 8181:8181 --name mcs -v /data/cache:/data/cache -v /data/files:/data/files -it mcs
+docker run -p 8181:8181 --name mcs -v /etc/mcs.keys:/etc/mcs.keys:ro -v /data/cache:/data/cache -v /data/files:/data/files:ro -it mcs
 ```
-Default access key is: **let-me-in**
+If no mcs.keys is avaiable the default key is **let-me-in**. The mcs.keys file is a plain text file with one key per line.

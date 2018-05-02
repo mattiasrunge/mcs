@@ -1,5 +1,7 @@
 FROM node:10-stretch
 
+ENV DLIB_VERSION v19.10
+
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -15,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dlib
-RUN git clone --branch v19.10 --depth 1 https://github.com/davisking/dlib.git \
+RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \
     && cd dlib \
     && mkdir build \
     && cd build \

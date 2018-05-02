@@ -16,8 +16,7 @@ describe("Face", function() {
         const args = {
             level: "debug",
             config: "test/data/config.json",
-            port: await getPort(),
-            keys: [ "secret key" ]
+            port: await getPort()
         };
 
         await main.start(args);
@@ -37,7 +36,7 @@ describe("Face", function() {
         });
 
         it("should authenticate", async () => {
-            const result = await api.auth.identify("secret key");
+            const result = await api.auth.identify(configuration.keys[0]);
 
             assert(result);
         });

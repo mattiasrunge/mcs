@@ -20,8 +20,7 @@ describe("Metadata", function() {
             level: "debug",
             config: "test/data/config.json",
             cachePath: await utils.createTmpDir(),
-            port: await getPort(),
-            keys: [ "secret key" ]
+            port: await getPort()
         };
 
         await fs.ensureDir(args.cachePath);
@@ -45,7 +44,7 @@ describe("Metadata", function() {
         });
 
         it("should authenticate", async () => {
-            const result = await api.auth.identify("secret key");
+            const result = await api.auth.identify(configuration.keys[0]);
 
             assert(result);
         });
