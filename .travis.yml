@@ -10,3 +10,9 @@ before_install:
 
 script:
   - docker run -it mcs npm test
+
+after_success:
+  - if [[ "$TRAVIS_BRANCH" == "master" ]]; then
+      docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD ;
+      docker push mcs ;
+    fi
