@@ -27,7 +27,7 @@
   "scripts": {
     "test": "mocha --reporter spec --ui tdd --recursive test && eslint $(git ls-files \\*.js)",
     "start": "node index.js",
-    "tag" : "PACKAGE_VERSION=$(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | sed 's/[\",]//g' | tr -d '[[:space:]]') && git tag $PACKAGE_VERSION && git push --tags"
+    "release" : "PACKAGE_VERSION=$(cat package.json | grep version | head -1 | awk -F: '{ print $2 }' | sed 's/[\",]//g' | tr -d '[[:space:]]') && git tag $PACKAGE_VERSION && git push --tags"
   },
   "main": "index.js",
   "license": "MIT",
