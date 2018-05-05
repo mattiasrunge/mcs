@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     unoconv \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dlib
+# Build dlib
 RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \
     && cd dlib \
     && mkdir build \
