@@ -10,16 +10,16 @@
   "dependencies": {
     "api.io": "^1.0.3",
     "checksum": "^0.1.1",
-    "face-recognition": "^0.9.1",
+    "face-recognition": "^0.9.3",
     "server-destroy": "^1.0.1",
-    "uuid": "^3.2.1"
+    "uuid": "^3.3.2"
   },
   "devDependencies": {
-    "fs-extra": "^5.0.0",
+    "fs-extra": "^6.0.1",
     "get-port": "^3.2.0",
-    "babel-eslint": "^8.2.3",
-    "eslint": "^4.19.1",
-    "mocha": "^5.1.1"
+    "babel-eslint": "^8.2.5",
+    "eslint": "^5.1.0",
+    "mocha": "^5.2.0"
   },
   "engines": {
     "node": ">= 10"

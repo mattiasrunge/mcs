@@ -1,6 +1,6 @@
 FROM node:10-stretch
 
-ENV DLIB_VERSION v19.10
+ENV DLIB_VERSION v19.14
 
 # Create app directory
 WORKDIR /usr/src/app
