@@ -1,6 +1,6 @@
-FROM ubuntu:16.04
+FROM ubuntu:19.04
 
-ENV DLIB_VERSION v19.15
+ENV DLIB_VERSION v19.17
 ENV MOZJPEG_VERSION v3.3.1
 
 # Create app directory
@@ -12,27 +12,23 @@ RUN apt-get update && apt-get install -y \
     wget \
     nasm \
     cmake \
+    git \
     pkg-config \
     libpng-dev \
     dh-autoreconf \
     ufraw-batch \
     libimage-exiftool-perl \
-    unoconv
-
-# Install nodejs
-RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
-
-# Install system dependencies
-RUN add-apt-repository ppa:jonathonf/ffmpeg-4 \
-    && apt-get update && apt-get install -y \
+    unoconv \
     ffmpeg \
     libavformat-dev \
     libopenblas-dev \
-    nodejs \
-    git \
     libx11-dev \
     imagemagick \
-    && rm -rf /var/lib/apt/lists/*
+    nano
+
+# Install nodejs
+RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
+RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 # Build mozjpeg
 RUN wget https://github.com/mozilla/mozjpeg/archive/$MOZJPEG_VERSION.tar.gz \
