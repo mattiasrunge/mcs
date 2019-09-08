@@ -1,6 +1,6 @@
 {
   "name": "mcs",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Media Cache Server",
   "author": "Mattias Runge-Broberg <mattias@runge.se>",
   "repository": {
