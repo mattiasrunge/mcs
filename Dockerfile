@@ -1,4 +1,4 @@
-FROM ubuntu:19.04
+FROM ubuntu:19.10
 
 ENV DLIB_VERSION v19.17
 ENV MOZJPEG_VERSION v3.3.1
@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y \
     wget \
     nasm \
     cmake \
+    dcraw \
     git \
     pkg-config \
     libpng-dev \
     dh-autoreconf \
-    ufraw-batch \
     libimage-exiftool-perl \
     unoconv \
     ffmpeg \
@@ -30,15 +30,12 @@ RUN apt-get update && apt-get install -y \
 RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
-# Build mozjpeg
-RUN wget https://github.com/mozilla/mozjpeg/archive/$MOZJPEG_VERSION.tar.gz \
-    && tar -xvf $MOZJPEG_VERSION.tar.gz \
-    && cd mozjpeg* \
-    && autoreconf -fiv \
-    && mkdir build && cd build \
-    && sh ../configure \
-    && make install \
-    && ln -s /opt/mozjpeg/bin/cjpeg /usr/local/bin/mozjpeg
+# Build libRaw
+#RUN git clone --branch 0.20-Beta1 --depth 1 https://github.com/LibRaw/LibRaw.git \
+#    && cd LibRaw \
+#    && autoreconf --install \
+#    && ./configure --enable-shared=no \
+#    && make install
 
 # Build dlib
 RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \

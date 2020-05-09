@@ -168,6 +168,18 @@ describe("Cache", function() {
 
             assert.equal(result.length, 1);
         });
+
+        it("should convert a raw file", async () => {
+            const filename = path.resolve(__dirname, "data/raw.cr2");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image"
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+        });
     });
 
     describe("Video2Image", () => {
