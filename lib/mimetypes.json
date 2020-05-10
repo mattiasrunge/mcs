@@ -44,6 +44,7 @@
         "application/pdf"
     ],
     "document": [
+        "application/json",
         "application/pdf",
         "text/plain",
         "text/html",
