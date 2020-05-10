@@ -30,13 +30,6 @@ RUN apt-get update && apt-get install -y \
 RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
 RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
-# Build libRaw
-#RUN git clone --branch 0.20-Beta1 --depth 1 https://github.com/LibRaw/LibRaw.git \
-#    && cd LibRaw \
-#    && autoreconf --install \
-#    && ./configure --enable-shared=no \
-#    && make install
-
 # Build dlib
 RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \
     && cd dlib \

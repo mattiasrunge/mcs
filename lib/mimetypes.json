@@ -47,6 +47,7 @@
         "application/pdf",
         "text/plain",
         "text/html",
+        "application/xml",
         "application/vnd.ms-excel",
         "application/msword",
         "application/vnd.ms-powerpoint",
