@@ -51,6 +51,8 @@ RUN DLIB_INCLUDE_DIR=/usr/src/app/dlib \
     DLIB_LIB_DIR=/usr/src/app/dlib/build/dlib \
     npm install
 
+COPY conf/policy.xml /etc/ImageMagick-6/
+
 # Bundle app source
 COPY . .
 

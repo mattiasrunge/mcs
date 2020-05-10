@@ -53,6 +53,41 @@ describe("Cache", function() {
         });
     });
 
+
+    describe("Document2Image", () => {
+        it("should create an image from a one page document", async () => {
+            const filename = path.resolve(__dirname, "data/document.odt");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image",
+                width: 20
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+
+            const size = await file.getSize(result);
+            assert.equal(size.width, 20);
+        });
+
+        it("should create an image from a two page document", async () => {
+            const filename = path.resolve(__dirname, "data/document2.odt");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image",
+                width: 20
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+
+            const size = await file.getSize(result);
+            assert.equal(size.width, 20);
+        });
+    });
+
     describe("Image2Image", () => {
         it("should resize a file with only width set", async () => {
             const filename = path.resolve(__dirname, "data/image1.jpg");
@@ -171,6 +206,18 @@ describe("Cache", function() {
 
         it("should convert a raw file", async () => {
             const filename = path.resolve(__dirname, "data/raw.cr2");
+            const id = idCounter++;
+
+            const result = await api.cache.get(id, filename, {
+                type: "image"
+            }, cachePath);
+
+            const exists = await fs.pathExists(result);
+            assert(exists);
+        });
+
+        it("should convert an animated file", async () => {
+            const filename = path.resolve(__dirname, "data/animated.gif");
             const id = idCounter++;
 
             const result = await api.cache.get(id, filename, {
