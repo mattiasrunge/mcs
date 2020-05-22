@@ -48,10 +48,10 @@ describe("Face", () => {
             const list = await api.face.detect(filename);
 
             assert.equal(list.length, 1);
-            assert.equal(list[0].x, 0.443);
-            assert.equal(list[0].y, 0.26124);
-            assert.equal(list[0].w, 0.4059);
-            assert.equal(list[0].h, 0.26845);
+            assert.equal(list[0].x, 0.456);
+            assert.equal(list[0].y, 0.24802);
+            assert.equal(list[0].w, 0.4686);
+            assert.equal(list[0].h, 0.30774);
         });
     });
 });

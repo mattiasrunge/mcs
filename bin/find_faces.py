@@ -20,7 +20,7 @@ def main(file, model):
     im = im.convert("RGB")
     image = np.array(im)
 
-    locations = fr.face_locations(image, number_of_times_to_upsample=2, model=model)
+    locations = fr.face_locations(image, number_of_times_to_upsample=1, model=model)
     encodings = fr.face_encodings(image, known_face_locations=locations, model="default")
     faces = []
 
