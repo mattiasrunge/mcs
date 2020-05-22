@@ -1,12 +1,12 @@
 "use strict";
 
-/* global describe before after it */
+/* global describe beforeAll afterAll it */
 
 const path = require("path");
 const getPort = require("get-port");
 const fs = require("fs-extra");
 const assert = require("assert");
-const api = require("api.io/api.io-client");
+const api = require("api.io").getClient();
 const main = require("../lib/main");
 const configuration = require("../lib/configuration");
 const file = require("../lib/file");
@@ -15,10 +15,8 @@ const utils = require("../lib/utils");
 let cachePath;
 let idCounter = 0;
 
-describe("Cache", function() {
-    this.timeout(20000);
-
-    before(async () => {
+describe("Cache", () => {
+    beforeAll(async () => {
         const args = {
             level: "debug",
             config: "test/data/config.json",
@@ -31,7 +29,7 @@ describe("Cache", function() {
         await fs.ensureDir(cachePath);
     });
 
-    after(async () => {
+    afterAll(async () => {
         await api.disconnect();
         await main.stop();
 

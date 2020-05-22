@@ -1,38 +1,29 @@
 "use strict";
 
-/* global describe before after it */
+/* global describe beforeAll afterAll it */
 
 const path = require("path");
 const getPort = require("get-port");
-const fs = require("fs-extra");
 const assert = require("assert");
-const api = require("api.io/api.io-client");
+const api = require("api.io").getClient();
 const main = require("../lib/main");
 const configuration = require("../lib/configuration");
 const file = require("../lib/file");
-const utils = require("../lib/utils");
 
-describe("Metadata", function() {
-    this.timeout(20000);
-
-    before(async () => {
+describe("Metadata", () => {
+    beforeAll(async () => {
         const args = {
             level: "debug",
             config: "test/data/config.json",
-            cachePath: await utils.createTmpDir(),
             port: await getPort()
         };
-
-        await fs.ensureDir(args.cachePath);
 
         await main.start(args);
     });
 
-    after(async () => {
+    afterAll(async () => {
         await api.disconnect();
         await main.stop();
-
-        await fs.remove(configuration.cachePath);
     });
 
     describe("Setup", () => {
