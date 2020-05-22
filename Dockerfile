@@ -1,48 +1,50 @@
 FROM ubuntu:19.10
 
-ENV DLIB_VERSION v19.17
-ENV MOZJPEG_VERSION v3.3.1
+ENV NODEJS_VERSION 14
 
 # Create app directory
 WORKDIR /usr/src/app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update \
+    && apt-get install -y \
     software-properties-common \
+    python3-pip \
+    python3-dev \
+    python3-numpy \
     wget \
-    nasm \
+#    nasm \
     cmake \
     dcraw \
     git \
     pkg-config \
-    libpng-dev \
-    dh-autoreconf \
+#    libpng-dev \
+#    dh-autoreconf \
     libimage-exiftool-perl \
     unoconv \
     ffmpeg \
-    libavformat-dev \
-    libopenblas-dev \
-    libx11-dev \
+#    libavformat-dev \
+#    libopenblas-dev \
+#    libx11-dev \
     imagemagick \
-    nano
+    nano \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/*
+
+# Install face recognition
+RUN pip3 install wheel sklearn face_recognition
 
 # Install nodejs
-RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
+RUN wget -qO- https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN wget -qO- https://deb.nodesource.com/setup_${NODEJS_VERSION}.x | bash -
+RUN apt-get install -y nodejs yarn && rm -rf /var/lib/apt/lists/*
 
-# Build dlib
-RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \
-    && cd dlib \
-    && mkdir build \
-    && cd build \
-    && cmake .. -DDLIB_NO_GUI_SUPPORT=1 -DBUILD_SHARED_LIBS=1 \
-    && cmake --build .
+
 
 # Install app dependencies
-COPY package*.json ./
-RUN DLIB_INCLUDE_DIR=/usr/src/app/dlib \
-    DLIB_LIB_DIR=/usr/src/app/dlib/build/dlib \
-    npm install
+COPY ./package.json ./
+RUN yarn
 
 COPY conf/policy.xml /etc/ImageMagick-6/
 

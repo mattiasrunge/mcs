@@ -14,7 +14,7 @@ docker build . -t mcs
 
 ## Tests
 ```bash
-docker run -it mcs npm test
+docker run -it mcs yarn test
 ```
 
 ## Run
