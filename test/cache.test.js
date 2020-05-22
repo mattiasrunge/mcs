@@ -1,6 +1,6 @@
 "use strict";
 
-/* global describe beforeAll afterAll it */
+/* global describe beforeAll afterAll it jest */
 
 const path = require("path");
 const getPort = require("get-port");
@@ -284,6 +284,8 @@ describe("Cache", () => {
 
     describe("Video2Video", () => {
         it("should convert a file", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/video1.mp4");
             const id = idCounter++;
 
@@ -296,6 +298,8 @@ describe("Cache", () => {
         });
 
         it("should resize a file with only width set", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/video1.mp4");
             const id = idCounter++;
 
@@ -313,6 +317,8 @@ describe("Cache", () => {
         });
 
         it("should resize a file with width and height set", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/video1.mp4");
             const id = idCounter++;
 
@@ -331,6 +337,8 @@ describe("Cache", () => {
         });
 
         it("should resize a file with width and height equal", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/video1.mp4");
             const id = idCounter++;
 
@@ -349,6 +357,8 @@ describe("Cache", () => {
         });
 
         it("should rotate a video", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/video1.mp4");
             const id = idCounter++;
 
@@ -368,6 +378,8 @@ describe("Cache", () => {
 
     describe("Audio2Audio", () => {
         it("should convert a file", async () => {
+            jest.setTimeout(30000);
+
             const filename = path.resolve(__dirname, "data/audio1.mp3");
             const id = idCounter++;
 

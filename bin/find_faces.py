@@ -14,13 +14,13 @@ scaling = 1.65
 
 @click.command()
 @click.argument('file')
-@click.option('--model', default="hog", help='Face detection model, options are "hog" or "cnn".')
+@click.option('--model', default="cnn", help='Face detection model, options are "hog" or "cnn".')
 def main(file, model):
     im = PIL.Image.open(file)
     im = im.convert("RGB")
     image = np.array(im)
 
-    locations = fr.face_locations(image, number_of_times_to_upsample=0, model=model)
+    locations = fr.face_locations(image, number_of_times_to_upsample=2, model=model)
     encodings = fr.face_encodings(image, known_face_locations=locations, model="default")
     faces = []
 

@@ -1,6 +1,6 @@
 "use strict";
 
-/* global describe beforeAll afterAll it */
+/* global describe beforeAll afterAll it jest */
 
 const path = require("path");
 const getPort = require("get-port");
@@ -42,14 +42,16 @@ describe("Face", () => {
 
     describe("Detect", () => {
         it("should detect faces", async () => {
+            jest.setTimeout(60000);
+
             const filename = path.resolve(__dirname, "data/mona.jpg");
             const list = await api.face.detect(filename);
 
             assert.equal(list.length, 1);
-            assert.equal(list[0].x, 0.448);
-            assert.equal(list[0].y, 0.27778);
-            assert.equal(list[0].w, 0.4092);
-            assert.equal(list[0].h, 0.27063);
+            assert.equal(list[0].x, 0.443);
+            assert.equal(list[0].y, 0.26124);
+            assert.equal(list[0].w, 0.4059);
+            assert.equal(list[0].h, 0.26845);
         });
     });
 });
