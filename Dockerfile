@@ -5,11 +5,6 @@ ENV NODEJS_VERSION 14
 # Create app directory
 WORKDIR /usr/src/app
 
-RUN echo "deb http://old-releases.ubuntu.com/ubuntu eoan Release restricted" >> /etc/apt/sources.list \
- && echo "deb http://old-releases.ubuntu.com/ubuntu eoan backports restricted" >> /etc/apt/sources.list \
- && echo "deb http://old-releases.ubuntu.com/ubuntu eoan-updates main restricted" >> /etc/apt/sources.list \
- && echo "deb http://old-releases.ubuntu.com/ubuntu eoan-security main restricted" >> /etc/apt/sources.list
-
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y \
