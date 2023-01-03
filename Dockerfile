@@ -1,4 +1,7 @@
-FROM ubuntu:eoan-20200608
+FROM ubuntu:20.04
+
+ENV TZ=Europe/Stockholm
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 ENV DLIB_VERSION v19.17
 ENV MOZJPEG_VERSION v3.3.1
@@ -24,7 +27,8 @@ RUN apt-get update && apt-get install -y \
     libopenblas-dev \
     libx11-dev \
     imagemagick \
-    nano
+    nano \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install nodejs
 RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
