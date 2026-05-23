@@ -28,11 +28,12 @@ RUN apt-get update && apt-get install -y \
     libx11-dev \
     imagemagick \
     nano \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install nodejs
-RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
-RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
+#RUN wget -qO- https://deb.nodesource.com/setup_10.x | bash -
+#RUN apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 # Build dlib
 RUN git clone --branch $DLIB_VERSION --depth 1 https://github.com/davisking/dlib.git \
