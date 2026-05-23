@@ -6,6 +6,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV DLIB_VERSION v19.17
 ENV MOZJPEG_VERSION v3.3.1
 ENV NODE_VERSION 10.24.1
+ENV LIBHEIF_VERSION v1.22.0
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -29,10 +30,25 @@ RUN apt-get update && apt-get install -y \
     libopenblas-dev \
     libx11-dev \
     imagemagick \
-    libheif-plugin-libde265 \
+    libde265-dev \
     nano \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 24.04 ships libheif 1.17.6, whose security limits reject many
+# modern Apple HEIC files (HDR gain maps, depth maps) with
+# "Too many auxiliary image references". Build a newer libheif into
+# /usr/local so ldconfig prefers it over the apt-installed copy when
+# ImageMagick loads libheif.so.1.
+RUN git clone --branch $LIBHEIF_VERSION --depth 1 https://github.com/strukturag/libheif.git /tmp/libheif \
+    && cmake -S /tmp/libheif -B /tmp/libheif/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DWITH_EXAMPLES=OFF \
+        -DBUILD_TESTING=OFF \
+    && cmake --build /tmp/libheif/build -j"$(nproc)" \
+    && cmake --install /tmp/libheif/build \
+    && ldconfig \
+    && rm -rf /tmp/libheif
 
 # Install Node.js 10 from official binary (face-recognition 0.9.4 only builds against Node 10's V8 API)
 RUN wget -q https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz \
