@@ -20,7 +20,8 @@
         "image/x-nikon-nef",
         "image/CR2",
         "image/x-panasonic-rw2",
-        "image/x-fujifilm-raf"
+        "image/x-fujifilm-raf",
+        "image/heic"
     ],
     "video": [
         "video/mpeg",
