@@ -378,7 +378,8 @@ skips detection (detection reads the first 30 s and applies its guess to the who
   "text": "…", "segments": [ { "start": 0.8, "end": 4.1, "text": "…", "words": [ { "start", "end", "word" } ] } ] }
 ```
 
-`speech: false` comes with an empty `segments` and is a normal answer for a silent clip.
+`speech: false` comes with an empty `segments` and is a normal answer for a silent clip; a file
+with no sound track at all answers `audio: false` as well, so the two can be told apart.
 
 ### 4.14 `speech.diarize` *long* *(implemented)*
 

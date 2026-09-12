@@ -48,7 +48,7 @@ async def test_silent_file_is_cached_as_no_audio(client, fake_worker, roots, fak
     (ro / "silent.mp4").write_bytes(b"mp4")
     for _ in range(2):
         r = await client.post("/v2/speech/transcribe", json={"file": {"path": str(ro / "silent.mp4")}})
-        assert r.json()["result"] == {"speech": False, "text": "", "segments": [], "duration": 0.0}
+        assert r.json()["result"] == {"speech": False, "audio": False, "text": "", "segments": [], "duration": 0.0}
     assert fake_extract == [str(ro / "silent.mp4")]
     assert fake_worker.requests == []
 

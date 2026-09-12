@@ -73,7 +73,8 @@ async def extracted_audio(ctx: Context, path: str, progress: Progress):
 
 
 def _silent_transcript() -> dict:
-    return {"speech": False, "text": "", "segments": [], "duration": 0.0}
+    """A file with no sound track at all — distinct from a track nobody speaks on."""
+    return {"speech": False, "audio": False, "text": "", "segments": [], "duration": 0.0}
 
 
 async def transcribe(ctx: Context, req: TranscribeRequest, progress: Progress) -> Outcome:
@@ -93,6 +94,7 @@ async def transcribe(ctx: Context, req: TranscribeRequest, progress: Progress) -
             raw = await ctx.worker.call("transcribe", payload, deadline=req.options.deadline)
     result = {
         "speech": bool(raw.get("speech")),
+        "audio": True,
         "text": raw.get("text") or "",
         "segments": raw.get("segments") or [],
         "duration": float(raw.get("duration") or 0.0),
