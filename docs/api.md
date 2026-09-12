@@ -10,7 +10,8 @@ tool or model answers.
 This document is the contract. It is written to stand on its own: a caller with a directory of
 files and an HTTP client can use every operation here without knowing anything about MURRiX.
 
-Status: **draft for review**, 2026-09-12. Nothing below is implemented yet.
+Status: **draft, Phase 1 implemented** (2026-09-12): everything in §4 marked *(implemented)* answers
+today; the rest is specified here and arrives in later phases. Open questions are at the end.
 
 ---
 
@@ -119,10 +120,11 @@ it was written for.
 
 ### 2.5 Admission
 
-MCS bounds concurrent work per resource — one queue per model family, a slot count for
-tool-bound work — and reports the bounds in `capabilities.limits`. A request that cannot be
-queued is `503 busy` with `Retry-After`. Interactive requests get a small reserved share so a
-crawl never starves a person waiting.
+MCS bounds concurrent work in two lanes — `models` (requests forwarded to the model worker,
+which serialises per model family behind that) and `tools` (CPU and subprocess work) — and
+reports the bounds in `capabilities.limits`. Past `queue_depth` waiters a new request is
+`503 busy` with `Retry-After`. Interactive requests may use `interactive_reserve` extra slots,
+so a crawl never starves a person waiting.
 
 ## 3. Files, roots and frames
 
@@ -188,7 +190,7 @@ The set of formats and their parameters is per op; `capabilities` lists what thi
 Namespaces: `media`, `image`, `video`, `audio`, `fingerprint`, `faces`, `speech`, `vision`,
 `text`, `document`, `system`.
 
-### 4.1 `media.probe`
+### 4.1 `media.probe` *(implemented)*
 
 What is this file? One call, all tools.
 
@@ -217,8 +219,13 @@ Result:
 ```
 
 - `kind` is `image | video | audio | document | other`.
-- `picture.rotation` is what the *container* says (EXIF Orientation as degrees, or the display
-  matrix) — reported, never applied. `picture.width/height` are the stored raster.
+- `picture.rotation` is what the *file* says: the degrees clockwise a naive viewer must turn the
+  stored raster to show it upright — exiftool's `Rotation` for a video container, or EXIF
+  `Orientation` mapped to degrees for an image (also reported raw as `picture.orientation`, with
+  `picture.mirrored: true` for the flipped variants). A video's display-matrix value is attached
+  as `picture.matrix_rotation` in ffmpeg's own sign convention. All of it is reported, never
+  applied: the caller decides what turn it owes (§3.3). `picture.width/height` are the stored
+  raster.
 - `captured_at` is a list of candidates in the tool's own tag names, ordered by how much the
   tool trusts them; the caller decides. `zone` is present only when the file carries one.
 - `decodable: false` comes with `reason` and means no decoder will ever get a frame out of these
@@ -227,6 +234,9 @@ Result:
 - `sha256` is computed only when asked (`"hash": true`); it is a full read.
 - `raw.exiftool` is exiftool's numeric, ungrouped JSON (`-n -j`); `raw.ffprobe` is
   `-show_format -show_streams` JSON. Their tag names belong to those tools.
+- ffprobe runs for video and audio (and for anything exiftool could not read). An MCS without
+  ffprobe still answers from exiftool and says so in `meta.warnings`; `decodable` is then
+  unmeasured and reported `true`.
 
 ### 4.2 `image.renditions`
 
@@ -326,7 +336,7 @@ A rendered waveform picture. `{ "file", "targets": [ … as 4.2 … ], "style": 
 `aspect` is the width:height the picture is drawn at for `contain` targets; `cover` targets are
 drawn square. Result as 4.2.
 
-### 4.10 `fingerprint.compute`
+### 4.10 `fingerprint.compute` *(implemented)*
 
 `{ "file", "kinds": ["phash-image", "phash-video", "phash-audio"] }` — default: every kind that
 applies to the file's `kind`. Result:
@@ -337,7 +347,7 @@ applies to the file's `kind`. Result:
 
 An audio too short to fingerprint yields no `phash-audio` entry rather than an error.
 
-### 4.11 `faces.detect`
+### 4.11 `faces.detect` *(implemented)*
 
 `{ "file": {…}, "min_size": 0.02 }` → boxes, landmarks and embeddings in one call:
 
@@ -349,12 +359,12 @@ An audio too short to fingerprint yields no `phash-audio` entry rather than an e
 
 `min_size` is the smallest face to report, as a fraction of the frame's shorter side.
 
-### 4.12 `faces.embed`
+### 4.12 `faces.embed` *(implemented)*
 
 An embedding for a face the caller already located: `{ "file", "box": {…} }` →
 `{ "embedding", "confidence" }`, or `result: null` when no face is found inside the box.
 
-### 4.13 `speech.transcribe` *long*
+### 4.13 `speech.transcribe` *long* *(implemented)*
 
 ```json
 { "file": {…}, "language": "sv", "vad": { "min_silence_ms": 500 }, "word_timestamps": false }
@@ -370,7 +380,7 @@ skips detection (detection reads the first 30 s and applies its guess to the who
 
 `speech: false` comes with an empty `segments` and is a normal answer for a silent clip.
 
-### 4.14 `speech.diarize` *long*
+### 4.14 `speech.diarize` *long* *(implemented)*
 
 `{ "file" }` → speaker turns:
 
@@ -384,12 +394,12 @@ person in two windows gets two labels, and a turn crossing a boundary arrives as
 meet there. Turning that into one speaker per file is the caller's job (`speech.voiceprint` on
 each turn, then cluster).
 
-### 4.15 `speech.voiceprint`
+### 4.15 `speech.voiceprint` *(implemented)*
 
 `{ "file", "start": 12.48, "end": 17.84 }` → `{ "embedding": [ … ], "dimension": 192 }`, or
 `result: null` when the span is too short to characterise a voice.
 
-### 4.16 `speech.active_speaker`
+### 4.16 `speech.active_speaker` *(implemented)*
 
 Is the face in `track` the one talking between `start` and `end`?
 `{ "file", "start", "end", "track": [ { "t": 12.5, "box": {…} }, … ] }` →
@@ -397,12 +407,13 @@ Is the face in `track` the one talking between `start` and `end`?
 a few frames, a span with no audio). Silence is not evidence of not speaking, so it is no answer
 rather than a low score.
 
-### 4.17 `vision.caption`
+### 4.17 `vision.caption` *(implemented)*
 
 The VLM, as a primitive: `{ "files": [ {…}, {…} ], "prompt": "…", "max_new_tokens": 128 }` →
 `{ "captions": [ "…", "…" ] }`. A list, because frames of one video belong in one conversation
-with the model; independent images should be sent as independent requests, which MCS may
-microbatch on its own.
+with the model; every file in the list must share one `angle`/`mirror`, since the model sees the
+batch in one display frame. Independent images should be sent as independent requests, which MCS
+may microbatch on its own.
 
 ### 4.18 `vision.describe` *long*
 
@@ -427,50 +438,60 @@ A description of a photo, a video or a recording, in prose. The composite most c
 
 Result: `{ "description": "…", "language": "sv", "grounded_on": { "faces": 2 }, "stages": { "caption": "qwen3-vl-8b/nf4", "transcribe": "faster-whisper/large-v3" } }`.
 
-### 4.19 `text.embed`
+### 4.19 `text.embed` *(implemented)*
 
 `{ "text": "…" }` → `{ "embedding": [ … ], "dimension": 384 }`. Normalized. The model is pinned:
 changing it changes every stored vector's meaning, so it is a major-version event.
 
-### 4.20 `text.generate`
+### 4.20 `text.generate` *(implemented)*
 
 `{ "messages": [ { "role": "system" | "user" | "assistant", "content": "…" } ], "max_new_tokens": 192, "json_only": false, "model": "instruct" | "vlm" }`
 → `{ "text": "…" }`. Greedy, so the same messages give the same answer. `json_only` returns the
 first balanced JSON object in the completion — the caller still validates what is inside it.
 
-### 4.21 `document.extract`
+### 4.21 `document.extract` *(implemented)*
 
 `{ "file", "ocr": "auto" | "always" | "never", "languages": ["swe", "eng"] }` →
 `{ "text": "…", "pages": 5, "method": "pdf-text" | "ocr" | "docx" | "odf" }`. `auto` runs OCR
 only when the document carries no usable text layer. A document that cannot be opened is
 `unsupported` (permanent).
 
-### 4.22 `system.health` — `GET /v2/health`
+### 4.22 `system.health` — `GET /v2/health` *(implemented)*
 
 Liveness and what is loaded:
 
 ```json
-{ "ok": true, "api": "2.0.0", "uptime": 86400, "gpu": { "present": true, "name": "…", "vram_mb": 16311, "vram_free_mb": 7900 },
-  "models": { "vlm": { "loaded": true, "device": "cuda", "name": "…" }, "whisper": { "loaded": false }, … },
-  "process": { "rss_mb": 6200, "max_rss_mb": 12000, "recycles": 0 },
+{ "ok": true, "api": "2.0.0", "uptime": 86400,
+  "gpu": { "present": true, "vram_allocated_mb": 6100, "vram_reserved_mb": 7900 },
+  "models": { "vlm": { "loaded": true, "device": "cuda" }, "minilm": { "loaded": true, "device": "cuda" } },
+  "worker": { "running": true, "restarts": 0 },
+  "process": { "rss_mb": 6200, "max_rss_mb": 12000, "recycles": 0, "uptime": 86000 },
   "degraded": [ { "what": "caption", "reason": "vram_full", "since": 1780000000 } ],
-  "queues": { "vlm": { "running": 1, "waiting": 3 } } }
+  "queues": { "models": { "running": 1, "waiting": 3, "limit": 8, "reserve": 1 }, "tools": { … } },
+  "warnings": [ "no keys configured: authentication is off" ] }
 ```
+
+`models` lists what is resident right now (the worker loads lazily and evicts idle families);
+`worker.running: false` means every model op answers `model_unavailable` until it is back.
 
 `degraded` lists silent fallbacks currently in effect (captioning pushed to the CPU by a full
 card) — the things that are otherwise indistinguishable from "slow".
 
-### 4.23 `system.capabilities` — `GET /v2/capabilities`
+### 4.23 `system.capabilities` — `GET /v2/capabilities` *(implemented)*
 
 What this MCS can do, for a caller to check before it relies on it:
 
 ```json
-{ "api": "2.0.0", "ops": [ "media.probe", … ],
+{ "api": "2.0.0", "ops": [ "media.probe", "faces.detect", … ],
   "roots": [ { "path": "/files", "mode": "ro" }, { "path": "/files-volatile", "mode": "rw" } ],
-  "formats": { "image": ["avif", "webp", "jpeg", "png"], "video": ["mp4"], "audio": ["m4a", "wav"] },
-  "encoders": { "av1": ["av1_nvenc", "libsvtav1"], "hevc": [] },
-  "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "paraphrase-multilingual-MiniLM-L12-v2", … },
-  "limits": { "vlm": 1, "faces": 2, "tools": 4, "interactive_reserve": 1 } }
+  "tools": { "exiftool": "13.10", "ffprobe": "9.0.1", "ffmpeg": "9.0.1", "fpcalc": "1.5.1", "tesseract": "5.3.4" },
+  "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "…MiniLM-L12-v2", "whisper": "large-v3", "faces": "insightface/buffalo_l", "instruct": "…" },
+  "limits": { "models": 8, "tools": 4, "queue_depth": 64, "interactive_reserve": 1 } }
+```
+
+`formats` and `encoders` join the answer with the rendition and transcode ops.
+
+```json
 ```
 
 ## 5. Error codes
@@ -487,16 +508,20 @@ What this MCS can do, for a caller to check before it relies on it:
 | `busy` | 503 | no | Admission queue full; `Retry-After` set |
 | `deadline_exceeded` | 504 | no | Discarded from the queue past `options.deadline` |
 | `model_unavailable` | 503 | no | The model needed is loading or its device is unusable right now |
-| `tool_failed` | 500 | no | A tool exited non-zero for a reason MCS could not classify; `message` carries its last lines |
+| `tool_failed` | 500 | no | A tool or model failed for a reason MCS could not classify; `message` carries what it said |
 | `internal` | 500 | no | MCS's own fault |
 
 ## 6. Configuration (operator)
 
-Environment only. `MCS_KEYS_FILE`, `MCS_ROOTS` (`/files:ro,/old:ro,/files-volatile:rw,/files-tmp:rw`),
-`MCS_PORT`, `MCS_SCRATCH`, the model choices and device policies (`MCS_VLM_MODEL`,
-`MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_MODEL_PINNED`, `MCS_MODEL_IDLE_EVICT`, `MCS_MAX_RSS`,
-…) and the admission limits. Changing any of them is a restart. `capabilities` and `health` are
-how a caller learns what a given MCS is running; there is no configuration API.
+Environment only. `MCS_KEYS_FILE` (one key per line) or `MCS_KEY`, `MCS_ROOTS`
+(`/files:ro,/old:ro,/files-volatile:rw,/files-tmp:rw`), `MCS_PORT`, `MCS_HOST`, `MCS_SCRATCH`,
+the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_QUEUE_DEPTH`,
+`MCS_INTERACTIVE_RESERVE`), `MCS_EXIFTOOL_WORKERS`, `MCS_TOOL_TIMEOUT`, the OCR floors
+(`MCS_OCR_*`), and the model worker's own settings — every `MCS_<NAME>` reaches it as
+`CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE`,
+`MCS_MODEL_PINNED`, `MCS_MODEL_IDLE_EVICT`, `MCS_MODEL_MAX_RSS`, `MCS_INSTRUCT_DEVICE`, …
+Changing any of them is a restart. `capabilities` and `health` are how a caller learns what a
+given MCS is running; there is no configuration API.
 
 ## 7. Appendix: the MURRiX mapping
 
