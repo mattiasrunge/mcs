@@ -183,3 +183,26 @@ async def test_a_rotated_crop_lands_on_the_marker(tmp_path):
     assert rendered.frame == (200, 400) and rendered.sizes == [(40, 40)]
     mean = subprocess.run(["magick", out, "-format", "%[fx:mean.r] %[fx:mean.g] %[fx:mean.b]", "info:"], capture_output=True, text=True, check=True).stdout.split()
     assert [round(float(v)) for v in mean] == [1, 0, 0]
+
+
+@needs_magick
+async def test_cloned_outputs_match_independently_decoded_ones(tmp_path):
+    """No output is ever resized from another: each clone equals a single-output run of the same source."""
+    source = str(tmp_path / "source.jpg")
+    subprocess.run(["magick", "-size", "400x200", "gradient:red-blue", "-set", "comment", "source metadata", source], check=True)
+    plans = [
+        magick.Plan(temp=str(tmp_path / f"{w}.avif"), format="avif", quality=q, width=w, height=w, fit="contain", crop=None)
+        for w, q in ((100, 55), (150, 60))
+    ]
+    rendered = await magick.render(source, 270, True, plans, timeout=60)
+    assert rendered.frame == (200, 400) and rendered.sizes == [(50, 100), (75, 150)]
+    for plan in plans:
+        reference = str(tmp_path / f"reference-{plan.width}.avif")
+        subprocess.run(["magick", source, *magick.FILTER_ARGS, *magick.STRIP_ARGS, "-rotate", "-270", "+repage", "-flop", "+repage",
+                        "-resize", f"{plan.width}x{plan.height}>", "-quality", str(plan.quality), f"avif:{reference}"], check=True)
+        fmt = "%w %h %[colorspace] %[orientation] %[signature]"
+        ours = subprocess.run(["magick", "identify", "-format", fmt, plan.temp], capture_output=True, text=True, check=True).stdout
+        theirs = subprocess.run(["magick", "identify", "-format", fmt, reference], capture_output=True, text=True, check=True).stdout
+        assert ours == theirs
+        # `TopLeft` is what a decoder reports for no transform at all; a leftover `irot` would read as a turn.
+        assert ours.startswith(f"{plan.width // 2} {plan.height} ") and ours.split()[3] in ("TopLeft", "Undefined")
