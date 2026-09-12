@@ -378,6 +378,12 @@ ENV MCS_KEYS_FILE=/etc/mcs.keys
 ENV MCS_WHISPER_MODEL=${WHISPER_MODEL}
 ENV MCS_VLM_MODEL=${VLM_MODEL}
 ENV MCS_INSTRUCT_MODEL=${INSTRUCT_MODEL}
+# ImageMagick parallelises one `magick` across cores via OpenMP (default: all of them). Left
+# alone, every rendition in the tool lane (MCS_LIMIT_TOOLS wide) spawns that many threads and
+# oversubscribes the box. Per-image OpenMP scaling is sublinear, so N independent images at one
+# thread each beats one image at N threads — and one thread per slot is what lets MCS_LIMIT_TOOLS
+# be sized against cores. MURRiX carried this value; it moved with the tool.
+ENV MAGICK_THREAD_LIMIT=1
 
 EXPOSE 8181
 

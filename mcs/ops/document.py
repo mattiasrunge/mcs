@@ -26,6 +26,13 @@ from ..streaming import Outcome, Progress, run_op
 from ..tools.versions import tool_version
 from .media import kind_of
 
+# Tesseract parallelises one page across cores with OpenMP (four threads by default), for a
+# gain of a few percent; in the tool lane that is four threads per slot on a box that is also
+# decoding, encoding and running models. One thread per OCR, like every other tool here. Set
+# on the front's own environment because pytesseract spawns the binary with it; the model
+# worker is spawned without it (worker.TOOL_ONLY_ENV), since torch on the CPU wants the cores.
+os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ODT = "application/vnd.oasis.opendocument.text"
 

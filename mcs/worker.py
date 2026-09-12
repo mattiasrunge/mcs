@@ -76,8 +76,13 @@ def classify(error: str, error_type: str | None) -> McsError:
     return McsError(code, error, retry_after=retry_after)
 
 
+# Thread caps the front sets for its tools that must not reach the models: torch on the CPU
+# (the instruct model runs there in the 32 GiB profile) wants every core it can get.
+TOOL_ONLY_ENV = ("OMP_THREAD_LIMIT",)
+
+
 def worker_env(env: dict[str, str]) -> dict[str, str]:
-    child = dict(env)
+    child = {name: value for name, value in env.items() if name not in TOOL_ONLY_ENV}
     for name, value in env.items():
         if name.startswith("MCS_"):
             child.setdefault("CFG_" + name[4:], value)
