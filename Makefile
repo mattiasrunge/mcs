@@ -13,13 +13,13 @@ IMAGE_NAME  ?= mcs
 CONTAINER_NAME ?= mcs
 HOST        ?= fry
 
-# Build arguments. These MUST match the MURRiX image's values for the shared layer prefix to
-# hit podman's cache (see the note at the top of Containerfile); MURRiX's Makefile is the
+# Build arguments. These MUST match the MURRiX image's values — and be passed the same way, so
+# WHISPER_MODEL stays a Containerfile default here as it is there — for the shared layer prefix
+# to hit podman's cache (see the note at the top of Containerfile); MURRiX's Makefile is the
 # source of the defaults.
 TORCH_CUDA      ?= cu130
 INSTRUCT_MODEL  ?= Qwen/Qwen2.5-1.5B-Instruct
 VLM_MODEL       ?= Qwen/Qwen3-VL-8B-Instruct
-WHISPER_MODEL   ?= large-v3
 FFMPEG_BUILD    ?= autobuild-2026-08-31-13-27
 FFMPEG_ASSET    ?= ffmpeg-n9.0.1-11-ge47273f4d9-linux64-gpl-9.0
 
@@ -61,7 +61,6 @@ build: ## Build the image (TMPDIR on the graph root: the model layers are tens o
 		--build-arg TORCH_CUDA=$(TORCH_CUDA) \
 		--build-arg INSTRUCT_MODEL=$(INSTRUCT_MODEL) \
 		--build-arg VLM_MODEL=$(VLM_MODEL) \
-		--build-arg WHISPER_MODEL=$(WHISPER_MODEL) \
 		--build-arg FFMPEG_BUILD=$(FFMPEG_BUILD) \
 		--build-arg FFMPEG_ASSET=$(FFMPEG_ASSET) \
 		.
