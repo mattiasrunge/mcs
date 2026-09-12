@@ -272,7 +272,7 @@ The display frame as a plain image, for formats other tools cannot open (RAW, HE
 `{ "file": {…}, "output": { "path": "…/decoded.png", "format": "png" | "jpeg", "max": 4096 } }`
 → `{ "frame": {…}, "path" }`. `max` bounds the longer side.
 
-### 4.4 `video.frames`
+### 4.4 `video.frames` *(implemented)*
 
 Frames as images. *long*.
 
@@ -397,7 +397,13 @@ each turn, then cluster).
 ### 4.15 `speech.voiceprint` *(implemented)*
 
 `{ "file", "start": 12.48, "end": 17.84 }` → `{ "embedding": [ … ], "dimension": 192 }`, or
-`result: null` when the span is too short to characterise a voice.
+`result: null` when the span is too short to characterise a voice. Many turns of one recording
+go in one request: `{ "file", "spans": [ { "start", "end" }, … ] }` →
+`{ "voiceprints": [ { "embedding", "dimension" } | null, … ] }`, in order.
+
+The sound of a file is extracted once and kept in scratch for a while (`MCS_AUDIO_CACHE_SECONDS`,
+default 30 min, within `MCS_AUDIO_CACHE_MB`), so a diarization followed by a voiceprint per turn
+and a score per turn decodes the recording once, not hundreds of times.
 
 ### 4.16 `speech.active_speaker` *(implemented)*
 
@@ -415,7 +421,7 @@ with the model; every file in the list must share one `angle`/`mirror`, since th
 batch in one display frame. Independent images should be sent as independent requests, which MCS
 may microbatch on its own.
 
-### 4.18 `vision.describe` *long*
+### 4.18 `vision.describe` *long* *(implemented)*
 
 A description of a photo, a video or a recording, in prose. The composite most callers want.
 
@@ -436,7 +442,15 @@ A description of a photo, a video or a recording, in prose. The composite most c
 - `prompt` overrides MCS's defaults per stage; the defaults are versioned and named in
   `meta.producer`.
 
-Result: `{ "description": "…", "language": "sv", "grounded_on": { "faces": 2 }, "stages": { "caption": "qwen3-vl-8b/nf4", "transcribe": "faster-whisper/large-v3" } }`.
+Result: `{ "description": "…", "prompt_version": "p4", "grounded_on": "faces:2@0.15,0.75", "stages": { "caption": "qwen3-vl-8b-instruct", "transcribe": "whisper-large-v3", "summary": "…", "merge": "…" } }`.
+`meta.producer` is `<caption model>/<prompt version>` for a picture or a clip, with the
+transcription and summary models joined on with `+` when MCS produced the spoken half itself
+— the string a caller stores as the description's provenance. `grounded_on` records what the
+caption was told about faces (count and rounded centres), so a later detection change is
+visible without re-reading the boxes. The prompts are MCS's and versioned; `capabilities`
+reports the version under `prompts.describe`, and a caller passing its own prompts owns their
+versioning. A picture the model readers cannot open (a RAW, an unusual HEIF) is decoded out of
+process and captioned from that, with the turn owed worked out per family (§3.3).
 
 ### 4.19 `text.embed` *(implemented)*
 
@@ -489,7 +503,8 @@ What this MCS can do, for a caller to check before it relies on it:
   "limits": { "models": 8, "tools": 4, "queue_depth": 64, "interactive_reserve": 1 } }
 ```
 
-`formats` and `encoders` join the answer with the rendition and transcode ops. `signatures.transcribe`
+`formats` and `encoders` join the answer with the rendition and transcode ops. `prompts.describe` is
+the version of the prompts `vision.describe` uses. `signatures.transcribe`
 is what a transcript decoded right now would be stamped with — every setting that decides
 `speech.transcribe`'s output, as one string — so a caller holding old transcripts can tell which
 were made with other settings; it is absent while the model worker is down.
