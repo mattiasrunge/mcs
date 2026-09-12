@@ -554,6 +554,11 @@ the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_QUEUE_DEPTH`,
 Changing any of them is a restart. `capabilities` and `health` are how a caller learns what a
 given MCS is running; there is no configuration API.
 
+Sizing the tool lane: every tool runs single-threaded (`MAGICK_THREAD_LIMIT=1` in the image,
+`OMP_THREAD_LIMIT=1` for tesseract), so `MCS_LIMIT_TOOLS` is a number of cores. Requests queue
+FIFO within a lane; a caller that runs several kinds of tool work at once (renditions beside OCR)
+bounds each kind on its own side, or the cheap one waits behind the slow one.
+
 ## 7. Appendix: the MURRiX mapping
 
 Kept here so nothing MURRiX does today is lost in the port. MURRiX resolves a VFS path to its
