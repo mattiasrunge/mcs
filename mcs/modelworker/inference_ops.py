@@ -465,11 +465,13 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
 
     # The effective decode settings: the request's overrides where given, the configuration
     # otherwise — the same resolution transcribe_signature performs, so stamp and decode agree.
-    vad = dict(registry.whisper_vad_parameters())
+    # Named so nothing inside `run` shadows them: its segment loop has a `words` of its own,
+    # which made a plain `words` here unbound at the decode call.
+    vad_params = dict(registry.whisper_vad_parameters())
     if min_silence_ms is not None:
-        vad['min_silence_duration_ms'] = int(min_silence_ms)
-    lang = registry.WHISPER_LANGUAGE if language is None else language
-    words = registry.WHISPER_WORD_TIMESTAMPS if word_timestamps is None else bool(word_timestamps)
+        vad_params['min_silence_duration_ms'] = int(min_silence_ms)
+    lang_hint = registry.WHISPER_LANGUAGE if language is None else language
+    want_words = registry.WHISPER_WORD_TIMESTAMPS if word_timestamps is None else bool(word_timestamps)
 
     def run():
         use_cuda = torch.cuda.is_available()
@@ -487,11 +489,11 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
             segments, info = model.transcribe(
                 file_path,
                 beam_size=5,
-                language=lang or None,
+                language=lang_hint or None,
                 vad_filter=True,
-                vad_parameters=vad,
+                vad_parameters=vad_params,
                 condition_on_previous_text=False,
-                word_timestamps=words,
+                word_timestamps=want_words,
             )
             # Empty segments are dropped here rather than downstream: a cue with no text is
             # not a subtitle, and an empty chunk is not worth a vector. So are segments the
@@ -538,7 +540,7 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
         "text": text,
         "speech": bool(text),
         "model": _whisper_model_name(),
-        "signature": transcribe_signature(lang, min_silence_ms, words),
+        "signature": transcribe_signature(lang_hint, min_silence_ms, want_words),
         "segments": segments,
         **info,
     }
