@@ -96,7 +96,20 @@ shell: ## A bash shell inside the running container
 	podman exec -it $(CONTAINER_NAME) bash
 
 gpu-check: ## Real inference on every model inside the running container (what device each bound to)
-	podman exec $(CONTAINER_NAME) python3 scripts/gpu_selftest.py
+	podman exec $(CONTAINER_NAME) python3 scripts/gpu_selftest.py $(GPU_CHECK_ARGS)
+
+# The model benches, run against the image with an archive mounted read-only at the same paths
+# the service sees (/files with its symlinks into /old), so they measure real media rather
+# than synthetic tone. MEDIA_ROOT is mounted at /media for the voice bench's --media-dir.
+MEDIA_ROOT ?= $(FILES_PATH)
+
+voice-bench: ## Measure Sortformer/TitaNet/LR-ASD load, inference and VRAM (VOICE_BENCH_ARGS=..., MEDIA_ROOT=...)
+	podman run --rm $(GPU_FLAG) -v $(PWD):/work:ro -v $(MEDIA_ROOT):/media:ro -w /work --entrypoint python3 $(IMAGE_NAME) \
+		scripts/bench/voice-models-bench.py --media-dir /media $(VOICE_BENCH_ARGS)
+
+whisper-coverage: ## Compare whisper decodes (WHISPER_COVERAGE_ARGS="--file /files/..." or "--sweep --file ... --silent ...")
+	podman run --rm $(GPU_FLAG) -v $(PWD):/work:ro -v $(FILES_PATH):/files:ro -v $(OLD_PATH):/old:ro -w /work --entrypoint python3 $(IMAGE_NAME) \
+		scripts/bench/whisper-coverage.py $(WHISPER_COVERAGE_ARGS)
 
 health: ## Ask the running MCS how it is
 	@curl -s -H "Authorization: Bearer $(MCS_KEY)" http://localhost:$(MCS_PORT)/v2/health | python3 -m json.tool
@@ -106,4 +119,4 @@ health: ## Ask the running MCS how it is
 remote-%: ## Run a verb on HOST: sync build run stop restart logs status shell gpu-check health
 	bash deploy/remote.sh $(HOST) $*
 
-.PHONY: help venv test serve build run stop logs shell gpu-check health
+.PHONY: help venv test serve build run stop logs shell gpu-check health voice-bench whisper-coverage
