@@ -33,6 +33,8 @@ class Settings:
     interactive_reserve: int
     exiftool_workers: int
     tool_timeout_seconds: int
+    audio_cache_seconds: int
+    audio_cache_mb: int
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> "Settings":
@@ -64,6 +66,8 @@ class Settings:
             interactive_reserve=integer("MCS_INTERACTIVE_RESERVE", 1),
             exiftool_workers=integer("MCS_EXIFTOOL_WORKERS", 2),
             tool_timeout_seconds=integer("MCS_TOOL_TIMEOUT", 900),
+            audio_cache_seconds=integer("MCS_AUDIO_CACHE_SECONDS", 1800),
+            audio_cache_mb=integer("MCS_AUDIO_CACHE_MB", 2048),
         )
 
 

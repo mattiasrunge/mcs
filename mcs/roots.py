@@ -73,6 +73,21 @@ class Roots:
             raise McsError(NOT_FOUND, f"{path}: no such file")
         return resolved
 
+    def output_dir(self, path: str, *, create: bool = True) -> str:
+        """Resolve a directory outputs will be written into; under a writable root, created if asked."""
+        if not isinstance(path, str) or not path:
+            raise invalid("output.dir is required")
+        if not os.path.isabs(path):
+            raise McsError(PATH_OUTSIDE_ROOTS, f"{path}: not an absolute path")
+        real = os.path.realpath(path)
+        if self._under(real, writable=True) is None:
+            raise McsError(PATH_OUTSIDE_ROOTS, f"{path}: outside the writable roots")
+        if not os.path.isdir(real):
+            if not create:
+                raise McsError(NOT_FOUND, f"{path}: output directory does not exist")
+            os.makedirs(real, exist_ok=True)
+        return real
+
     def output(self, path: str) -> str:
         """Resolve an output path: its directory must exist under a writable root.
 

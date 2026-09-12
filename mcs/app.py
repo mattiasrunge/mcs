@@ -16,13 +16,14 @@ from .auth import require_key
 from .config import Settings
 from .context import Context
 from .errors import INTERNAL, INVALID_REQUEST, McsError
-from .ops import document, faces, fingerprint, media, speech, system, text, vision
+from .ops import document, faces, fingerprint, media, speech, system, text, video, vision
 from .roots import Roots
+from .tools.audio import AudioCache
 from .tools.exiftool import ExifTool
 from .tools.run import which
 from .worker import Worker
 
-OP_MODULES = (media, fingerprint, document, faces, speech, vision, text)
+OP_MODULES = (media, fingerprint, document, faces, speech, vision, video, text)
 
 
 def log(message: str) -> None:
@@ -43,6 +44,7 @@ def create_app(settings: Settings | None = None, *, worker: Worker | None = None
         ),
         worker=worker,
         exiftool=None,
+        audio=AudioCache(settings.scratch, ttl_seconds=settings.audio_cache_seconds, budget_mb=settings.audio_cache_mb, timeout=settings.tool_timeout_seconds),
     )
 
     @asynccontextmanager
@@ -58,6 +60,7 @@ def create_app(settings: Settings | None = None, *, worker: Worker | None = None
             ctx.exiftool = ExifTool(settings.exiftool_workers, settings.tool_timeout_seconds)
         else:
             ctx.warnings.append("exiftool is not installed: media.probe answers from ffprobe only")
+        await ctx.audio.start()
         if start_worker:
             await worker.start()
         try:
@@ -67,6 +70,7 @@ def create_app(settings: Settings | None = None, *, worker: Worker | None = None
                 await worker.stop()
             if ctx.exiftool is not None:
                 await ctx.exiftool.stop()
+            await ctx.audio.stop()
 
     app = FastAPI(title="MCS", version=API_VERSION, lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from .admission import Admission
 from .config import Settings
 from .roots import Roots
+from .tools.audio import AudioCache
 from .tools.exiftool import ExifTool
 from .worker import Worker
 
@@ -21,6 +22,7 @@ class Context:
     admission: Admission
     worker: Worker
     exiftool: ExifTool | None
+    audio: AudioCache
     started_at: float = field(default_factory=time.time)
     warnings: list[str] = field(default_factory=list)
 

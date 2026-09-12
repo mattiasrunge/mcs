@@ -1,24 +1,22 @@
 """`speech.*` — transcription, speaker turns, voiceprints and active-speaker scoring.
 
 Every op here takes any container with sound and extracts the audio itself (16 kHz mono PCM
-in private scratch, removed afterwards); the models never see the caller's file. A file with
-no audio stream is a normal answer (`speech: false`, `turns: []`, `null`), not an error —
-plenty of any archive is silent phone clips.
+in scratch, cached for a while — see tools/audio.py); the models never see the caller's file.
+A file with no audio stream is a normal answer (`speech: false`, `turns: []`, `null`), not an
+error — plenty of any archive is silent phone clips.
 """
 
 from __future__ import annotations
 
-import os
-import shutil
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Request
 from pydantic import Field
 
 from ..context import Context
+from ..errors import invalid
 from ..schemas import Box, FileRef, Strict, WithOptions
 from ..streaming import Outcome, Progress, run_op
-from ..tools import ffmpeg as ffmpeg_tool
 from ._models import model_slot
 
 
@@ -37,10 +35,18 @@ class DiarizeRequest(WithOptions):
     file: FileRef
 
 
-class VoiceprintRequest(WithOptions):
-    file: FileRef
+class Span(Strict):
     start: float = Field(ge=0)
     end: float = Field(gt=0)
+
+
+class VoiceprintRequest(WithOptions):
+    """One span (`start`/`end`) or many (`spans`); the audio is extracted once either way."""
+
+    file: FileRef
+    start: float | None = Field(default=None, ge=0)
+    end: float | None = Field(default=None, gt=0)
+    spans: list[Span] | None = None
 
 
 class TrackPoint(Strict):
@@ -57,15 +63,13 @@ class ActiveSpeakerRequest(WithOptions):
 
 @asynccontextmanager
 async def extracted_audio(ctx: Context, path: str, progress: Progress):
-    """The file's sound as a WAV in scratch, or None when it has none. Cleaned up on exit."""
-    tmp = ctx.scratch_dir("audio")
+    """The file's sound as a cached WAV, or None when it has none. Held for the block's duration."""
+    await progress.emit("extract-audio")
+    wav = await ctx.audio.acquire(path)
     try:
-        await progress.emit("extract-audio")
-        wav = os.path.join(tmp, "audio.wav")
-        has_audio = await ffmpeg_tool.extract_audio(path, wav, timeout=ctx.settings.tool_timeout_seconds)
-        yield wav if has_audio else None
+        yield wav
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        ctx.audio.release(path)
 
 
 def _silent_transcript() -> dict:
@@ -113,17 +117,33 @@ async def diarize(ctx: Context, req: DiarizeRequest, progress: Progress) -> Outc
     return Outcome(result, producer=str(raw.get("model") or "sortformer"))
 
 
+def _voiceprint_of(raw: dict | None) -> dict | None:
+    if raw is None:
+        return None
+    return {"embedding": raw.get("embedding") or [], "dimension": int(raw.get("dim") or len(raw.get("embedding") or []))}
+
+
 async def voiceprint(ctx: Context, req: VoiceprintRequest, progress: Progress) -> Outcome:
     path = ctx.roots.input(req.file.path)
+    if req.spans is None and (req.start is None or req.end is None):
+        raise invalid("voiceprint needs start and end, or spans")
+    spans = req.spans if req.spans is not None else [Span(start=req.start, end=req.end)]
+    producer = "titanet"
     async with model_slot(ctx, req.options):
         async with extracted_audio(ctx, path, progress) as wav:
-            if wav is None:
-                return Outcome(None, producer="none")
-            await progress.emit("voiceprint")
-            raw = await ctx.worker.call("embed_voice_segment", {"path": wav, "start": req.start, "end": req.end}, deadline=req.options.deadline)
-    if raw is None:
-        return Outcome(None, producer="titanet")
-    return Outcome({"embedding": raw.get("embedding") or [], "dimension": int(raw.get("dim") or len(raw.get("embedding") or []))}, producer=str(raw.get("model") or "titanet"))
+            results: list[dict | None] = []
+            for index, span in enumerate(spans):
+                if wav is None:
+                    results.append(None)
+                    continue
+                await progress.emit("voiceprint", fraction=(index + 1) / len(spans))
+                raw = await ctx.worker.call("embed_voice_segment", {"path": wav, "start": span.start, "end": span.end}, deadline=req.options.deadline)
+                if raw is not None:
+                    producer = str(raw.get("model") or producer)
+                results.append(_voiceprint_of(raw))
+    if req.spans is None:
+        return Outcome(results[0], producer=producer)
+    return Outcome({"voiceprints": results}, producer=producer)
 
 
 async def active_speaker(ctx: Context, req: ActiveSpeakerRequest, progress: Progress) -> Outcome:

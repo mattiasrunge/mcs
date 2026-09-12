@@ -6,8 +6,10 @@ from fastapi import APIRouter, Request
 from pydantic import Field
 
 from ..context import Context
+from ..errors import McsError, UNSUPPORTED
 from ..schemas import Box, FileRef, WithOptions
 from ..streaming import Outcome, Progress, run_op
+from ..tools import decode as decode_tool
 from ._models import model_slot
 
 PRODUCER = "insightface/buffalo_l"
@@ -53,27 +55,34 @@ def to_fractions(raw: dict, min_size: float) -> dict:
     return {"frame": {"width": int(width), "height": int(height)}, "faces": faces}
 
 
+async def _with_fallback(ctx: Context, op: str, path: str, file: FileRef, extra: dict, deadline: float | None) -> dict | None:
+    """The worker's answer, decoding the file out of process when its readers cannot open it."""
+    payload = {"path": path, "angle": file.angle, "mirror": file.mirror, **extra}
+    try:
+        return await ctx.worker.call(op, payload, deadline=deadline)
+    except McsError as exc:
+        if exc.code is not UNSUPPORTED or not decode_tool.is_unreadable(exc.message):
+            raise
+    decoded = await decode_tool.decode_for_models(path, file.mimetype, file.angle, file.mirror, scratch=ctx.settings.scratch, timeout=ctx.settings.tool_timeout_seconds)
+    try:
+        return await ctx.worker.call(op, {**payload, "path": decoded.path, "angle": decoded.angle, "mirror": decoded.mirror}, deadline=deadline)
+    finally:
+        decoded.cleanup()
+
+
 async def detect(ctx: Context, req: DetectRequest, progress: Progress) -> Outcome:
     path = ctx.roots.input(req.file.path)
     async with model_slot(ctx, req.options):
         await progress.emit("detect")
-        raw = await ctx.worker.call(
-            "detect_faces",
-            {"path": path, "angle": req.file.angle, "mirror": req.file.mirror},
-            deadline=req.options.deadline,
-        )
-    return Outcome(to_fractions(raw, req.min_size), producer=PRODUCER)
+        raw = await _with_fallback(ctx, "detect_faces", path, req.file, {}, req.options.deadline)
+    return Outcome(to_fractions(raw or {}, req.min_size), producer=PRODUCER)
 
 
 async def embed(ctx: Context, req: EmbedRequest, progress: Progress) -> Outcome:
     path = ctx.roots.input(req.file.path)
     async with model_slot(ctx, req.options):
         await progress.emit("embed")
-        raw = await ctx.worker.call(
-            "embed_face",
-            {"path": path, "box": req.box.model_dump(), "angle": req.file.angle, "mirror": req.file.mirror},
-            deadline=req.options.deadline,
-        )
+        raw = await _with_fallback(ctx, "embed_face", path, req.file, {"box": req.box.model_dump()}, req.options.deadline)
     if raw is None:
         return Outcome(None, producer=PRODUCER)
     return Outcome({"embedding": raw.get("embedding") or [], "confidence": float(raw.get("confidence", 0))}, producer=PRODUCER)

@@ -59,6 +59,7 @@ def register(router: APIRouter, ctx: Context) -> None:
             if fallback:
                 degraded.append({"what": "caption", "reason": fallback.get("reason", "card busy"), "since": fallback.get("since")})
             body["degraded"] = degraded
+        body["audio_cache"] = ctx.audio.snapshot()
         if ctx.warnings:
             body["warnings"] = list(ctx.warnings)
         return body
@@ -77,8 +78,13 @@ def register(router: APIRouter, ctx: Context) -> None:
                 signatures["transcribe"] = signature["signature"]
         except McsError:
             pass
+        from .. import describe as rules
+
         return {
             "signatures": signatures,
+            # What `vision.describe` asks the models, versioned: a caption's provenance is
+            # `<model>/<version>`, and this is the half a caller cannot learn from the model name.
+            "prompts": {"describe": rules.PROMPT_VERSION},
             "api": API_VERSION,
             "ops": [route.path.removeprefix("/v2/").replace("/", ".") for route in router.routes if "POST" in getattr(route, "methods", set())],
             "roots": ctx.roots.describe(),
