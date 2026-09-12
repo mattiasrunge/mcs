@@ -108,6 +108,10 @@ def _parse(raw: bytes, path: str) -> dict:
         parsed = parsed[0] if parsed else {}
     if not isinstance(parsed, dict):
         raise McsError(TOOL_FAILED, f"exiftool returned an unexpected shape for {path}")
+    # exiftool writes `SourceFile` into every `-j` object whatever `-x` says. It names the path
+    # this process was handed — the resolved one, under whatever root MCS mounts — which is a
+    # fact about this service and not about the file, so it does not reach the caller.
+    parsed.pop("SourceFile", None)
     return parsed
 
 

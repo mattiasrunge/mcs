@@ -21,6 +21,7 @@ async def test_probe_a_real_jpeg(client, roots):
     assert result["picture"]["width"] == 8 and result["picture"]["height"] == 4
     assert result["decodable"] is True and len(result["sha256"]) == 64
     assert result["raw"]["exiftool"]["MIMEType"] == "image/jpeg"
+    assert "SourceFile" not in result["raw"]["exiftool"]
     assert "ffprobe" not in result["raw"]  # an image needs no stream probe
     assert body["meta"]["producer"].startswith("exiftool/")
 
