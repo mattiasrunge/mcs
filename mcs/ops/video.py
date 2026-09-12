@@ -25,6 +25,9 @@ from .image import MAX_TARGETS, RenditionTarget, render_targets
 # ffmpeg's filtergraph parser.
 SQUARE_PIXELS_FILTER = r"scale=w=if(gt(sar\,1)\,trunc(iw*sar/2)*2\,iw):h=if(lt(sar\,1)\,trunc(ih/sar/2)*2\,ih),setsar=1"
 
+# What ffmpeg says when a seek lands past the last frame and the output gets nothing.
+NO_FRAMES_MARKER = "Nothing was written into output file"
+
 
 class FrameOutput(Strict):
     dir: str
@@ -133,10 +136,15 @@ async def extract_poster(ctx: Context, path: str, out: str, *, at: float, deinte
         done = await run(args, timeout=timeout)
         if done.code == 0:
             break
+        # A seek past the end: every frame is decoded and dropped, the encoder sees none, and
+        # ffmpeg 9 exits with an error saying so where older builds exited 0 with an empty
+        # file. Either way the same request will do the same again, so it is permanent, and it
+        # is not worth a second decode on the CPU.
+        if NO_FRAMES_MARKER in done.stderr_text:
+            raise McsError(TOOL_FAILED, f"no frame at {at:g}s", permanent=True)
         last = done.tail() or f"exit {done.code}"
     else:
         raise McsError(TOOL_FAILED, f"ffmpeg frame extraction failed: {last}")
-    # A seek past the end exits 0 having written nothing. The same request will do so again.
     if not os.path.isfile(out) or os.path.getsize(out) == 0:
         raise McsError(TOOL_FAILED, f"no frame at {at:g}s", permanent=True)
 

@@ -73,3 +73,25 @@ async def test_poster_past_the_end_is_permanent(client, roots, monkeypatch):
     assert r.status_code == 500
     assert r.json()["error"] == {"code": "tool_failed", "message": "no frame at 5s", "permanent": True}
     assert os.listdir(rw) == []
+
+
+async def test_a_seek_past_the_end_is_permanent_whatever_ffmpeg_exits(client, roots, monkeypatch, tmp_path):
+    from mcs.errors import McsError
+    from mcs.ops.video import extract_poster
+    from mcs.tools import run as run_tool
+
+    ro, rw = roots
+    (ro / "v.mp4").write_bytes(b"mp4")
+
+    async def failing_ffmpeg(args, *, timeout, **kw):
+        return run_tool.Completed(list(args), 234, b"", b"[out#0/image2 @ 0x1] Nothing was written into output file, because at least one of its streams received no packets.\n")
+
+    monkeypatch.setattr(video, "run", failing_ffmpeg)
+    monkeypatch.setattr(video, "require", lambda name: "/usr/bin/ffmpeg")
+    ctx = client.app.state.ctx
+    try:
+        await extract_poster(ctx, str(ro / "v.mp4"), str(tmp_path / "frame.jpg"), at=5.0, deinterlace=False)
+    except McsError as exc:
+        assert exc.permanent is True and exc.message == "no frame at 5s"
+    else:
+        raise AssertionError("a seek past the end was not refused")
