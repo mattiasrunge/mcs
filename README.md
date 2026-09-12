@@ -24,8 +24,9 @@ GET  /v2/health               liveness, loaded models, VRAM, degraded fallbacks
 GET  /v2/capabilities         ops, roots, tools, models, limits
 ```
 
-Files are absolute paths under configured **roots** (`MCS_ROOTS=/files:ro,/old:ro,/files-volatile:rw`);
-anything outside is refused. Mount the same paths on both sides and nothing is ever copied.
+Files are absolute paths under configured **roots** (`MCS_ROOTS=/files:ro,/old:ro,/files-volatile:rw,/files-tmp:rw`);
+anything outside is refused. Mount the caller's directories at the same container paths on
+both sides and nothing is ever copied.
 
 ## Run
 

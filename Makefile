@@ -23,14 +23,17 @@ WHISPER_MODEL   ?= large-v3
 FFMPEG_BUILD    ?= autobuild-2026-08-31-13-27
 FFMPEG_ASSET    ?= ffmpeg-n9.0.1-11-ge47273f4d9-linux64-gpl-9.0
 
-# Run arguments. Roots are mounted at the same path inside as outside so the paths MURRiX
-# resolves are the paths MCS opens; MCS_ROOTS names what it may touch.
+# Run arguments. The four host directories are mounted at the SAME container paths MURRiX
+# mounts them at (/files, /old, /files-volatile, /files-tmp): the paths MURRiX resolves inside
+# its container are the paths MCS opens inside its own, and nothing is ever copied. MCS_ROOTS
+# names exactly those four, read-only for the originals.
 MCS_PORT        ?= 8181
 MCS_KEY         ?= let-me-in
 FILES_PATH      ?= /srv/files
 OLD_PATH        ?= /srv/old
 VOLATILE_PATH   ?= /srv/files-volatile
 TMP_PATH        ?= /srv/files-tmp
+MCS_ROOTS       ?= /files:ro,/old:ro,/files-volatile:rw,/files-tmp:rw
 MCS_MEMORY      ?= 16g
 GPU             ?=
 GPU_FLAG        := $(if $(GPU),--device nvidia.com/gpu=all,)
@@ -63,13 +66,13 @@ build: ## Build the image (TMPDIR on the graph root: the model layers are tens o
 		--build-arg FFMPEG_ASSET=$(FFMPEG_ASSET) \
 		.
 
-run: ## Run the container (GPU=1 for NVIDIA; roots from FILES_PATH/OLD_PATH/VOLATILE_PATH/TMP_PATH)
+run: ## Run the container (GPU=1 for NVIDIA; FILES_PATH/OLD_PATH/VOLATILE_PATH/TMP_PATH mount at /files, /old, /files-volatile, /files-tmp)
 	@mkdir -p $(VOLATILE_PATH) $(TMP_PATH)
 	podman run --replace -d --name $(CONTAINER_NAME) --restart on-failure:5 --stop-timeout 60 \
 		--memory $(MCS_MEMORY) --memory-swap $(MCS_MEMORY) \
 		$(GPU_FLAG) --network=host \
 		-e MCS_PORT=$(MCS_PORT) -e MCS_KEY=$(MCS_KEY) \
-		-e MCS_ROOTS=$(FILES_PATH):ro,$(OLD_PATH):ro,$(VOLATILE_PATH):rw,$(TMP_PATH):rw \
+		-e MCS_ROOTS=$(MCS_ROOTS) \
 		$(if $(MCS_MODEL_PINNED),-e MCS_MODEL_PINNED=$(MCS_MODEL_PINNED),) \
 		$(if $(MCS_MODEL_IDLE_EVICT),-e MCS_MODEL_IDLE_EVICT=$(MCS_MODEL_IDLE_EVICT),) \
 		$(if $(MCS_MODEL_MAX_RSS),-e MCS_MODEL_MAX_RSS=$(MCS_MODEL_MAX_RSS),) \
@@ -77,10 +80,10 @@ run: ## Run the container (GPU=1 for NVIDIA; roots from FILES_PATH/OLD_PATH/VOLA
 		$(if $(MCS_VLM_QUANT),-e MCS_VLM_QUANT=$(MCS_VLM_QUANT),) \
 		$(if $(MCS_WHISPER_LANGUAGE),-e MCS_WHISPER_LANGUAGE=$(MCS_WHISPER_LANGUAGE),) \
 		$(if $(TZ),-e TZ=$(TZ),) \
-		-v $(FILES_PATH):$(FILES_PATH):ro \
-		-v $(OLD_PATH):$(OLD_PATH):ro \
-		-v $(VOLATILE_PATH):$(VOLATILE_PATH) \
-		-v $(TMP_PATH):$(TMP_PATH) \
+		-v $(FILES_PATH):/files:ro \
+		-v $(OLD_PATH):/old:ro \
+		-v $(VOLATILE_PATH):/files-volatile \
+		-v $(TMP_PATH):/files-tmp \
 		$(IMAGE_NAME)
 
 stop: ## Stop the container
