@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from .. import API_VERSION
 from ..context import Context
+from ..errors import McsError
 from ..tools.run import which
 from ..tools.versions import tool_version
 
@@ -66,7 +67,18 @@ def register(router: APIRouter, ctx: Context) -> None:
     async def capabilities():
         tools = {name: await tool_version(name) for name in TOOLS if which(name)}
         env = os.environ
+        # What a transcript decoded right now would be stamped with: everything that decides
+        # `speech.transcribe`'s output, as one string, so a caller can find transcripts made
+        # with other settings. Costs no model load; absent while the worker is down.
+        signatures: dict = {}
+        try:
+            signature = await ctx.worker.call("transcribe_signature", {})
+            if isinstance(signature, dict) and signature.get("signature"):
+                signatures["transcribe"] = signature["signature"]
+        except McsError:
+            pass
         return {
+            "signatures": signatures,
             "api": API_VERSION,
             "ops": [route.path.removeprefix("/v2/").replace("/", ".") for route in router.routes if "POST" in getattr(route, "methods", set())],
             "roots": ctx.roots.describe(),

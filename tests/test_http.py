@@ -50,3 +50,12 @@ async def test_health_reports_worker_and_queues(client, fake_worker):
     assert body["process"]["recycles"] == 1
     assert body["degraded"] == [{"what": "caption", "reason": "vram_full", "since": 1}]
     assert body["queues"]["models"]["limit"] == 2
+
+
+async def test_capabilities_carries_the_transcribe_signature(client, fake_worker):
+    fake_worker.on("transcribe_signature", lambda req: {"signature": "whisper-large-v3:vad=0.2/400/500,nospeech=0.6,lang=auto,words=0"})
+    r = await client.get("/v2/capabilities")
+    assert r.json()["signatures"] == {"transcribe": "whisper-large-v3:vad=0.2/400/500,nospeech=0.6,lang=auto,words=0"}
+    await fake_worker.stop()
+    r = await client.get("/v2/capabilities")
+    assert r.json()["signatures"] == {}

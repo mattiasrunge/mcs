@@ -489,7 +489,10 @@ What this MCS can do, for a caller to check before it relies on it:
   "limits": { "models": 8, "tools": 4, "queue_depth": 64, "interactive_reserve": 1 } }
 ```
 
-`formats` and `encoders` join the answer with the rendition and transcode ops.
+`formats` and `encoders` join the answer with the rendition and transcode ops. `signatures.transcribe`
+is what a transcript decoded right now would be stamped with — every setting that decides
+`speech.transcribe`'s output, as one string — so a caller holding old transcripts can tell which
+were made with other settings; it is absent while the model worker is down.
 
 ```json
 ```
