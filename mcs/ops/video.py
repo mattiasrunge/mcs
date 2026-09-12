@@ -1,8 +1,10 @@
-"""`video.frames` — frames of a video as images, at given times or spread across the file."""
+"""`video.frames` — frames as images, at given times or spread across the file — and
+`video.poster`, one frame fitted into rendition targets like a photo."""
 
 from __future__ import annotations
 
 import os
+import shutil
 from typing import Literal
 
 from fastapi import APIRouter, Request
@@ -15,6 +17,7 @@ from ..streaming import Outcome, Progress, run_op
 from ..tools import ffmpeg as ffmpeg_tool
 from ..tools.run import require, run
 from ..tools.versions import producer
+from .image import MAX_TARGETS, RenditionTarget, render_targets
 
 # The pixel aspect ratio is the half of the display frame a JPEG cannot carry, so it is baked
 # into the frame rather than left to the reader: a captioner given an anamorphic frame
@@ -98,3 +101,64 @@ def register(router: APIRouter, ctx: Context) -> None:
     @router.post("/video/frames")
     async def video_frames(request: Request, body: FramesRequest):
         return await run_op(request, lambda progress: frames(ctx, body, progress))
+
+    register_poster(router, ctx)
+
+
+class PosterRequest(WithOptions):
+    file: FileRef
+    at: float = Field(default=1.0, ge=0)
+    deinterlace: bool = False
+    targets: list[RenditionTarget] = Field(min_length=1, max_length=MAX_TARGETS)
+
+
+async def extract_poster(ctx: Context, path: str, out: str, *, at: float, deinterlace: bool) -> None:
+    """One frame at `at` seconds as a lossless-as-JPEG-gets still, in the raw frame with square pixels.
+
+    `-ss` after `-i`: decoding from the start and dropping frames to the timestamp is
+    frame-accurate, and the poster is taken a second in, so there is nothing to skip past.
+    `-display_rotation 0` keeps ffmpeg from applying the container's matrix on its own — the
+    caller's angle is the only thing that turns pixels, the same rule every op keeps.
+    """
+    timeout = ctx.settings.tool_timeout_seconds
+    ffmpeg = require("ffmpeg")
+    filters = ("yadif," if deinterlace else "") + SQUARE_PIXELS_FILTER
+    tail = ["-i", path, "-vf", filters, "-ss", f"{at:.3f}", "-vframes", "1", "-qscale:v", "0", "-y", "-f", "image2", "-update", "1", out]
+    attempts = []
+    if ffmpeg_tool.gpu_present():
+        attempts.append([ffmpeg, "-v", "error", "-display_rotation", "0", "-hwaccel", "cuda"] + tail)
+    attempts.append([ffmpeg, "-v", "error", "-display_rotation", "0"] + tail)
+    last = ""
+    for args in attempts:
+        done = await run(args, timeout=timeout)
+        if done.code == 0:
+            break
+        last = done.tail() or f"exit {done.code}"
+    else:
+        raise McsError(TOOL_FAILED, f"ffmpeg frame extraction failed: {last}")
+    # A seek past the end exits 0 having written nothing. The same request will do so again.
+    if not os.path.isfile(out) or os.path.getsize(out) == 0:
+        raise McsError(TOOL_FAILED, f"no frame at {at:g}s", permanent=True)
+
+
+async def poster(ctx: Context, req: PosterRequest, progress: Progress) -> Outcome:
+    path = ctx.roots.input(req.file.path)
+    async with ctx.admission.slot("tools", interactive=req.options.interactive):
+        scratch = ctx.scratch_dir("poster")
+        try:
+            await progress.emit("frame")
+            frame = os.path.join(scratch, "frame.jpg")
+            await extract_poster(ctx, path, frame, at=req.at, deinterlace=req.deinterlace)
+            await progress.emit("render")
+            # The frame is a JPEG now: the caller's angle applies whole, no reader-applied turn to subtract.
+            result = await render_targets(ctx, frame, req.file.angle, req.file.mirror, req.targets)
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+    result["t"] = req.at
+    return Outcome(result, producer=await producer("ffmpeg", "magick"))
+
+
+def register_poster(router: APIRouter, ctx: Context) -> None:
+    @router.post("/video/poster")
+    async def video_poster(request: Request, body: PosterRequest):
+        return await run_op(request, lambda progress: poster(ctx, body, progress))

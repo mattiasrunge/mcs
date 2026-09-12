@@ -16,14 +16,14 @@ from .auth import require_key
 from .config import Settings
 from .context import Context
 from .errors import INTERNAL, INVALID_REQUEST, McsError
-from .ops import document, faces, fingerprint, media, speech, system, text, video, vision
+from .ops import audio, document, faces, fingerprint, image, media, speech, system, text, video, vision
 from .roots import Roots
 from .tools.audio import AudioCache
 from .tools.exiftool import ExifTool
 from .tools.run import which
 from .worker import Worker
 
-OP_MODULES = (media, fingerprint, document, faces, speech, vision, video, text)
+OP_MODULES = (media, image, video, audio, fingerprint, document, faces, speech, vision, text)
 
 
 def log(message: str) -> None:

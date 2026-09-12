@@ -93,7 +93,7 @@ async def _longest_edge(path: str, timeout: float) -> int:
     return max(w, h)
 
 
-async def _applied_angle(path: str, timeout: float) -> int:
+async def applied_angle(path: str, timeout: float) -> int:
     """The turn ImageMagick makes for a HEIF: the `irot`, in quarter turns, or none."""
     done = await run([require("exiftool"), "-s3", "-n", "-Rotation", path], timeout=timeout)
     text = done.stdout.decode(errors="replace").strip() if done.code == 0 else ""
@@ -147,7 +147,7 @@ async def decode_for_models(path: str, mimetype: str | None, angle, mirror: bool
             # Full resolution: a HEIC is what a phone actually shot, so detection should see the
             # same pixels it would from the equivalent JPEG.
             decoded = await _convert(path, os.path.join(tmpdir, "decoded.jpg"), timeout)
-            residual = normalize_angle(node_angle - await _applied_angle(path, timeout))
+            residual = normalize_angle(node_angle - await applied_angle(path, timeout))
             return Decoded(decoded, residual, mirror, tmpdir)
         decoded = await _preview(path, tmpdir, timeout)
         if decoded is None:

@@ -13,7 +13,7 @@ from ..errors import McsError
 from ..tools.run import which
 from ..tools.versions import tool_version
 
-TOOLS = ("exiftool", "ffprobe", "ffmpeg", "fpcalc", "tesseract", "convert")
+TOOLS = ("exiftool", "ffprobe", "ffmpeg", "fpcalc", "tesseract", "magick")
 
 
 def _gpu() -> dict:

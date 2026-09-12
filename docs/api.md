@@ -10,8 +10,8 @@ tool or model answers.
 This document is the contract. It is written to stand on its own: a caller with a directory of
 files and an HTTP client can use every operation here without knowing anything about MURRiX.
 
-Status: **draft, Phase 1 implemented** (2026-09-12): everything in §4 marked *(implemented)* answers
-today; the rest is specified here and arrives in later phases. Open questions are at the end.
+Status: **draft, Phases 1–3b implemented** (2026-09-12): everything in §4 marked *(implemented)* answers
+today; the rest (the transcodes, `image.decode`, `audio.extract`) is specified here and arrives in later phases. Open questions are at the end.
 
 ---
 
@@ -238,32 +238,39 @@ Result:
   ffprobe still answers from exiftool and says so in `meta.warnings`; `decodable` is then
   unmeasured and reported `true`.
 
-### 4.2 `image.renditions`
+### 4.2 `image.renditions` *(implemented)*
 
 Several sized renditions of one image, from one decode. *long* for large sources.
 
 ```json
 {
-  "file": { "path": "…/IMG_1.CR2", "angle": 270 },
+  "file": { "path": "…/IMG_1.CR2", "angle": 270, "mimetype": "image/x-canon-cr2" },
   "targets": [
     { "output": { "path": "…/320x320.avif", "format": "avif", "quality": 55 }, "box": { "width": 320, "height": 320 }, "fit": "cover" },
     { "output": { "path": "…/512x512.avif", "format": "avif", "quality": 58 }, "box": { "width": 512, "height": 512 }, "fit": "contain" },
-    { "output": { "path": "…/face.avif",    "format": "avif", "quality": 60 }, "crop": { "x": 0.41, "y": 0.22, "width": 0.09, "height": 0.13 }, "pad": 0.5, "box": { "width": 512, "height": 512 }, "fit": "contain" }
+    { "output": { "path": "…/face.avif",    "format": "avif", "quality": 70 }, "crop": { "x": 0.41, "y": 0.22, "width": 0.09, "height": 0.13 }, "pad": 0.3, "box": { "width": 384, "height": 384 }, "fit": "contain" }
   ]
 }
 ```
 
-- `box` is the bounding box in pixels of the display frame. `fit: contain` fits inside and
-  **never upscales** (a small source lands at its own size); `fit: cover` fills the box exactly,
-  cropping the centre, and does upscale.
+- `box` is a bounding box in pixels of the display frame; either side may be omitted. `fit`:
+  `contain` (default) fits inside and **never upscales** — a small source lands at its own
+  size; `cover` fills the box exactly, cropping the centre, and does upscale; `fill` stretches
+  to the box. No `box` keeps the source size, which is how a crop is taken at full resolution.
 - `crop` (fractions of the display frame) cuts first; `pad` grows the crop by that fraction of
-  its own size on each side, clamped to the frame. The result is then fitted like any target.
-- Output formats: `avif`, `webp`, `jpeg`, `png`. `quality` is the encoder's own scale.
+  its own size on each side, clamped to the frame. The cut is then fitted like any target. The
+  fraction is resolved against the raster MCS decoded — so for a RAW, whose readers disagree on
+  which raster the file *is* (embedded preview against sensor image), a box measured by
+  `faces.detect` cuts the same face here.
+- Output formats: `avif` (default), `webp`, `jpeg`, `png`. `quality` is the encoder's own scale
+  (default 60). A path whose extension names another image format is `invalid_request`.
 - Renditions carry **no metadata** (EXIF stripped) and **no orientation tag** — the pixels are
   already upright, and a viewer applying a leftover tag would turn them back.
+- All targets are written or none: every output is validated before any is put in place.
+- At most 32 targets.
 
 Result: `{ "frame": {"width", "height"}, "targets": [ { "path", "width", "height", "bytes" } ] }` —
-the measured size of each written file, in order.
+the display frame's pixel size and the measured size of each written file, in order.
 
 ### 4.3 `image.decode`
 
@@ -285,10 +292,13 @@ Either `at` (seconds) or `count` + `strategy` (`representative` picks visually d
 across the file; `even` spaces them). Frames come out in the display frame with square pixels.
 Result: `{ "frames": [ { "path", "t", "width", "height" } ] }`.
 
-### 4.5 `video.poster`
+### 4.5 `video.poster` *(implemented)*
 
-One frame, fitted like a rendition target. `{ "file", "at": 1.0, "targets": [ … as 4.2 … ] }` →
-as 4.2. A convenience over `video.frames` + `image.renditions` that decodes once.
+One frame, fitted like a rendition. `{ "file", "at": 1.0, "deinterlace": false, "targets": [ … as 4.2 … ] }`
+→ as 4.2 plus `"t"`. A convenience over `video.frames` + `image.renditions` that decodes once:
+the frame is taken at `at` seconds (default 1, past the black leader most cameras record) in the
+display frame with square pixels; `deinterlace` runs yadif first. `at` past the end of the file
+is `tool_failed` and permanent — the caller knows the duration and picks a time inside it.
 
 ### 4.6 `video.transcode` *long*
 
@@ -330,11 +340,13 @@ The sound of any file as PCM, for callers with their own audio models.
 → `{ "path", "duration" }`, or `{ "path": null, "duration": 0 }` when the file has no audio
 stream — a normal answer, not an error.
 
-### 4.9 `audio.waveform`
+### 4.9 `audio.waveform` *(implemented)*
 
-A rendered waveform picture. `{ "file", "targets": [ … as 4.2 … ], "style": { "foreground": "#…", "background": "#…", "aspect": 3 } }`.
-`aspect` is the width:height the picture is drawn at for `contain` targets; `cover` targets are
-drawn square. Result as 4.2.
+A rendered waveform picture. `{ "file", "targets": [ … as 4.2 … ], "style": { "foreground": "#4a90f0", "background": "#0a0b0e", "baseline": "#2b70d6", "aspect": 3 } }`.
+Every target needs a `box` with both sides: a `cover` target is drawn square, any other as a
+banner `aspect` times wider than tall that fits inside the box. Each picture is drawn at twice
+its size and scaled down once (the drawing has no antialiasing of its own), from a single
+decode of the recording. `baseline: null` draws no centre line. Result: `{ "targets": [ … as 4.2 … ] }`.
 
 ### 4.10 `fingerprint.compute` *(implemented)*
 
@@ -551,15 +563,15 @@ decides *when* anything runs. Nothing of that is MCS's business.
 | MURRiX today | MCS op |
 | --- | --- |
 | `exif-extract` (exif service, `media-probe.ts`, `video-codec.ts`) | `media.probe` — the readers of `raw.exiftool` are `types/exif.ts`, `exif-date.ts`, `video-codec.ts`, the orientation rules in `exif-extract`; listed so a tool change knows where to look |
-| `image-to-image`, `image-ladder.ts`, `generate-derivatives` | `image.renditions` |
-| `detect-faces` crop, `face-crop-rebuild.ts`, `regenerate-face-crops` | `image.renditions` with `crop` |
-| `decode-image.ts` (RAW/HEIC fallback) | `image.decode` — or nothing, since the model ops decode natively |
+| `image-ladder.ts`, `generate-derivatives` | `image.renditions` — one call per photo for the whole ladder |
+| `detect-faces` crop, `face-crop-rebuild.ts`, `regenerate-face-crops`, the importer's legacy crops | `image.renditions` with `crop` (`writeFaceCrop`) |
+| `decode-image.ts` (RAW/HEIC fallback, `sourceFrame`) | nothing: the model ops decode natively and a crop resolves its fraction against the decoded raster |
 | `describe-file` keyframes, `voice-asd.ts` frame grabs | `video.frames` |
-| `video-to-image` | `video.poster` |
+| `image-ladder.ts` for a video | `video.poster` |
 | `video-to-video`, `video-concat`, `generate-version` | `video.transcode` |
 | `audio-to-audio` | `audio.transcode` |
 | `demux-audio.ts` | `audio.extract` (only when MURRiX needs the WAV itself; `speech.*` extract on their own) |
-| `audio-to-image` | `audio.waveform` |
+| `image-ladder.ts` for a recording | `audio.waveform` |
 | `compute-fingerprint`, fingerprint service | `fingerprint.compute` |
 | `detect-faces` (model half) | `faces.detect` |
 | `face-transfer` / legacy tags | `faces.embed` |
@@ -580,8 +592,8 @@ album summaries, query schemas, pipelines, pools and retries.
 - `media.probe`: should `captured_at` interpretation (which tag wins, zone handling) move into
   MCS as a normalized `captured_at_best`, or stay a caller rule? Proposed: stay a caller rule for
   now; MCS reports candidates.
-- `image.renditions`: one decode per source is the point — should `targets` be capped, and should
-  MCS refuse a `cover` target larger than the source rather than upscaling?
+- `image.renditions`: `targets` is capped at 32. `cover` upscales on purpose (a square thumb
+  owes its callers a square); should there be a `fit` that refuses instead?
 - `vision.describe`: the default prompts are MCS's. Is a caller-visible prompt version in
   `meta.producer` enough for a caller to know when to redo descriptions, or does it need a
   `prompt_version` field of its own?
