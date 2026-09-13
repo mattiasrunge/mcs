@@ -55,6 +55,19 @@ table, run by pytest.
 
 ## Status
 
-Phase 1 of the split from MURRiX (see MURRiX's `work/plans/mcs-v2.md`): the model primitives,
-`media.probe`, `fingerprint.compute` and `document.extract`. Renditions, transcodes and the
-`vision.describe` composite follow in later phases; `docs/api.md` describes all of it.
+Every phase of the split from MURRiX (its `work/plans/mcs-v2.md`) is in: the model primitives
+and composites, `media.probe`, `fingerprint.compute`, `document.extract`, the renditions
+(`image.renditions`, `video.poster`, `audio.waveform`) and the transcodes (`video.transcode`,
+`audio.transcode`). `docs/api.md` is the contract; `image.decode` and `audio.extract` are
+specified there and not yet needed by any caller.
+
+## Known issues
+
+- **The ffmpeg pin is written twice.** `Containerfile` declares `ARG FFMPEG_BUILD`/`FFMPEG_ASSET`
+  with defaults and the Makefile passes the same two names as `--build-arg`, so the Makefile's
+  values win and a repin made only in the Containerfile builds the old ffmpeg without a word
+  (podman reuses the cached layer). Bump both together, and check `ffmpeg -version` inside the
+  container afterwards. The layer also sits above the model stack, so busting it re-downloads
+  ~10 GB of weights; moving it below the models would make a repin cheap. Inherited from
+  MURRiX's `src/Containerfile` with the layer prefix (its
+  `work/tasks/done/deploy-ffmpeg-pin-has-two-sources-and-a-slow-layer.md`).
