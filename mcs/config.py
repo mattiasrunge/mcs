@@ -29,12 +29,32 @@ class Settings:
     # wait for either before a new one is answered `busy`.
     limit_models: int
     limit_tools: int
+    # Transcodes hold a slot for minutes, so they have a lane of their own rather than sitting
+    # in the tool lane ahead of every probe and rendition behind them.
+    limit_encodes: int
     queue_depth: int
     interactive_reserve: int
     exiftool_workers: int
     tool_timeout_seconds: int
+    # A CPU AV1 encode of a long tape runs for hours; the tool timeout would cut it short.
+    encode_timeout_seconds: int
     audio_cache_seconds: int
     audio_cache_mb: int
+    # The CPU decode's memory footprint, projected before an encode starts: RSS grows with the
+    # frames decoded in one process and is never given back (measured at ~170 MB per thousand
+    # frames, independent of resolution), so a source over the budget is encoded as windows of
+    # this size — one process each — and one whose windows cannot be placed is refused. Zero
+    # disables the CPU chain. See mcs/tools/encode.py.
+    cpu_encode_max_mb: int
+    cpu_encode_mb_per_1k_frames: int
+    cpu_encode_max_segments: int
+    # Which ffmpeg encoder makes the video renditions: empty picks av1_nvenc when the card and
+    # the build offer it and libsvtav1 otherwise; a name pins it (the CPU chain still backs it).
+    video_encoder: str
+    # NVENC's cq is not libsvtav1's crf: +6 keeps the same `quality` meaning roughly the same
+    # bytes on either encoder (measured: cq 38 matched crf 32 within 1%).
+    nvenc_cq_offset: int
+    nvenc_preset: str
 
     @staticmethod
     def from_env(env: dict[str, str] | None = None) -> "Settings":
@@ -62,12 +82,20 @@ class Settings:
             worker_script=e.get("MCS_WORKER_SCRIPT", os.path.join(here, "modelworker", "model_server.py")),
             limit_models=integer("MCS_LIMIT_MODELS", 8),
             limit_tools=integer("MCS_LIMIT_TOOLS", 4),
+            limit_encodes=integer("MCS_LIMIT_ENCODES", 2),
             queue_depth=integer("MCS_QUEUE_DEPTH", 64),
             interactive_reserve=integer("MCS_INTERACTIVE_RESERVE", 1),
             exiftool_workers=integer("MCS_EXIFTOOL_WORKERS", 2),
             tool_timeout_seconds=integer("MCS_TOOL_TIMEOUT", 900),
+            encode_timeout_seconds=integer("MCS_ENCODE_TIMEOUT", 6 * 3600),
             audio_cache_seconds=integer("MCS_AUDIO_CACHE_SECONDS", 1800),
             audio_cache_mb=integer("MCS_AUDIO_CACHE_MB", 2048),
+            cpu_encode_max_mb=integer("MCS_CPU_ENCODE_MAX_MB", 4000),
+            cpu_encode_mb_per_1k_frames=integer("MCS_CPU_ENCODE_MB_PER_1K_FRAMES", 170),
+            cpu_encode_max_segments=integer("MCS_CPU_ENCODE_MAX_SEGMENTS", 64),
+            video_encoder=e.get("MCS_VIDEO_ENCODER", ""),
+            nvenc_cq_offset=integer("MCS_NVENC_CQ_OFFSET", 6),
+            nvenc_preset=e.get("MCS_NVENC_PRESET", "p5"),
         )
 
 

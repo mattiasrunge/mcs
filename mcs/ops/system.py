@@ -10,8 +10,10 @@ from fastapi import APIRouter
 from .. import API_VERSION
 from ..context import Context
 from ..errors import McsError
+from ..tools import encode
 from ..tools.run import which
 from ..tools.versions import tool_version
+from . import transcode
 
 TOOLS = ("exiftool", "ffprobe", "ffmpeg", "fpcalc", "tesseract", "magick")
 
@@ -99,7 +101,17 @@ def register(router: APIRouter, ctx: Context) -> None:
             "limits": {
                 "models": ctx.settings.limit_models,
                 "tools": ctx.settings.limit_tools,
+                "encodes": ctx.settings.limit_encodes,
                 "queue_depth": ctx.settings.queue_depth,
                 "interactive_reserve": ctx.settings.interactive_reserve,
+            },
+            # What decides a transcode's fate on this box: the encoder that will run and the
+            # CPU-decode budget a refusal is measured against. A caller records the budget's
+            # signature beside a refusal, so a raised budget re-opens the gap on its own.
+            "encode": {
+                "video_encoder": await transcode.gpu_encoder(ctx) or encode.CPU_ENCODER,
+                "cpu_budget": encode.Budget(
+                    ctx.settings.cpu_encode_max_mb, ctx.settings.cpu_encode_mb_per_1k_frames, ctx.settings.cpu_encode_max_segments
+                ).signature,
             },
         }

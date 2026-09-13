@@ -10,8 +10,8 @@ tool or model answers.
 This document is the contract. It is written to stand on its own: a caller with a directory of
 files and an HTTP client can use every operation here without knowing anything about MURRiX.
 
-Status: **draft, Phases 1–3b implemented** (2026-09-12): everything in §4 marked *(implemented)* answers
-today; the rest (the transcodes, `image.decode`, `audio.extract`) is specified here and arrives in later phases. Open questions are at the end.
+Status: **Phases 1–3 implemented** (2026-09-13): everything in §4 marked *(implemented)* answers
+today; `image.decode` and `audio.extract` are specified here and not yet needed by any caller. Open questions are at the end.
 
 ---
 
@@ -300,7 +300,7 @@ the frame is taken at `at` seconds (default 1, past the black leader most camera
 display frame with square pixels; `deinterlace` runs yadif first. `at` past the end of the file
 is `tool_failed` and permanent — the caller knows the duration and picks a time inside it.
 
-### 4.6 `video.transcode` *long*
+### 4.6 `video.transcode` *long* *(implemented)*
 
 ```json
 {
@@ -313,25 +313,41 @@ is `tool_failed` and permanent — the caller knows the duration and picks a tim
 }
 ```
 
-- `video.box` is a bounding box; the picture is fitted inside and never upscaled.
-- `video.quality` is on the codec's own scale (AV1: 0–63, lower is better); `speed` likewise.
-  MCS maps them onto whichever encoder it uses (hardware or software) so the same request
-  produces comparable output on either.
-- `audio: null` drops the sound; `clip` cuts before encoding.
-- `hints` are optional facts the caller already knows that save a probe.
+- `video.box` is a bounding box; the picture is fitted inside and never upscaled, and comes
+  out in the display frame (the caller's `angle`/`mirror`; the container's own rotation matrix
+  is neither applied nor passed on).
+- `video.quality` is on the codec's own scale (AV1: 0–63, lower is better); `speed` likewise
+  (SVT-AV1's 0–13). MCS maps them onto whichever encoder it uses — on NVENC, `quality + 6` as
+  `cq`, measured to give the same bytes — so the same request produces comparable output on
+  either.
+- `audio: null` drops the sound; `clip` cuts before encoding (`start` is an input-side seek,
+  `duration` an output-side length).
+- `hints.source_codec` (ffmpeg's name) lets MCS skip the GPU decode it knows will fail for a
+  codec NVDEC cannot read (DV, MJPEG, ProRes, H.263, MS-MPEG4v3); without it the failure is
+  learnt from one ffmpeg run. Unknown codecs are tried.
 
-MCS chooses the decode/filter/encode chain (GPU where present and capable, CPU otherwise) and
-falls back on its own; `meta.producer` names what ran (`ffmpeg-9.0.1/av1_nvenc`). Progress events
-carry `fraction` by frames. A source MCS refuses to encode on the CPU because it would exceed
-MCS's own memory budget is `refused` (permanent for that source and box).
+MCS chooses the chain and falls back on its own — everything in VRAM, then a CPU decode into
+the GPU encoder, then the CPU alone — and `meta.producer` names what ran
+(`ffmpeg/9.0.1/av1_nvenc/cuda`, `…/av1_nvenc/upload`, `…/libsvtav1`). A CPU decode's memory
+footprint is projected from the frame count before it starts and a source over the budget is
+encoded as several windows, one process each, joined by a stream copy with the audio encoded
+once over the whole clip; only a source whose windows cannot be placed is **`refused`** —
+permanent for that source at that budget. `capabilities.encode.cpu_budget` is the budget's
+signature, for a caller that records refusals and wants to know when a raised budget makes
+them stale. Progress events carry `fraction` by time.
 
 Result: `{ "path", "width", "height", "duration", "bytes", "video_codec", "audio_codec" }`.
+Transcodes run in the `encodes` lane (`MCS_LIMIT_ENCODES`), so a long encode never sits ahead
+of the probes and renditions queued in the tool lane.
 
-### 4.7 `audio.transcode`
+### 4.7 `audio.transcode` *(implemented)*
 
 `{ "file", "output": { "path": "…/128k-44100.m4a", "format": "m4a" }, "audio": { "codec": "aac", "bitrate": "128k", "sample_rate": 44100 } }`.
-`bitrate` and `sample_rate` are **ceilings**: MCS never exceeds the source's own, and keeps mono
-for a mono source. Result: `{ "path", "duration", "bytes", "bitrate", "sample_rate", "channels" }`.
+`bitrate` and `sample_rate` are **ceilings**: MCS never exceeds the source's own, and keeps
+mono for a mono source. A source that is already AAC in an MP4-family container is remuxed
+rather than re-encoded. The output is the `ipod` flavour of MP4 (ftyp brand `M4A `), so a
+sniffer reads it as audio. A file with no audio stream is `refused`.
+Result: `{ "path", "duration", "bytes", "bitrate", "sample_rate", "channels", "remuxed" }`.
 
 ### 4.8 `audio.extract`
 
@@ -513,17 +529,19 @@ What this MCS can do, for a caller to check before it relies on it:
   "roots": [ { "path": "/files", "mode": "ro" }, { "path": "/files-volatile", "mode": "rw" } ],
   "tools": { "exiftool": "13.10", "ffprobe": "9.0.1", "ffmpeg": "9.0.1", "fpcalc": "1.5.1", "tesseract": "5.3.4" },
   "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "…MiniLM-L12-v2", "whisper": "large-v3", "faces": "insightface/buffalo_l", "instruct": "…" },
-  "limits": { "models": 8, "tools": 4, "queue_depth": 64, "interactive_reserve": 1 } }
+  "limits": { "models": 8, "tools": 6, "encodes": 2, "queue_depth": 64, "interactive_reserve": 1 },
+  "encode": { "video_encoder": "av1_nvenc", "cpu_budget": "4000/170/64" },
+  "prompts": { "describe": "p4" },
+  "signatures": { "transcribe": "large-v3/…" } }
 ```
 
-`formats` and `encoders` join the answer with the rendition and transcode ops. `prompts.describe` is
-the version of the prompts `vision.describe` uses. `signatures.transcribe`
-is what a transcript decoded right now would be stamped with — every setting that decides
-`speech.transcribe`'s output, as one string — so a caller holding old transcripts can tell which
-were made with other settings; it is absent while the model worker is down.
-
-```json
-```
+`encode.video_encoder` is what `video.transcode` will run first, and `encode.cpu_budget` the
+signature of the CPU-decode budget a refusal is measured against — a caller that records
+refusals compares it to know when a raised budget has made them stale. `prompts.describe` is
+the version of the prompts `vision.describe` uses. `signatures.transcribe` is what a transcript
+decoded right now would be stamped with — every setting that decides `speech.transcribe`'s
+output, as one string — so a caller holding old transcripts can tell which were made with other
+settings; it is absent while the model worker is down.
 
 ## 5. Error codes
 
@@ -546,8 +564,11 @@ were made with other settings; it is absent while the model worker is down.
 
 Environment only. `MCS_KEYS_FILE` (one key per line) or `MCS_KEY`, `MCS_ROOTS`
 (`/files:ro,/old:ro,/files-volatile:rw,/files-tmp:rw`), `MCS_PORT`, `MCS_HOST`, `MCS_SCRATCH`,
-the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_QUEUE_DEPTH`,
-`MCS_INTERACTIVE_RESERVE`), `MCS_EXIFTOOL_WORKERS`, `MCS_TOOL_TIMEOUT`, the OCR floors
+the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_LIMIT_ENCODES`,
+`MCS_QUEUE_DEPTH`, `MCS_INTERACTIVE_RESERVE`), `MCS_EXIFTOOL_WORKERS`, `MCS_TOOL_TIMEOUT`,
+`MCS_ENCODE_TIMEOUT`, the transcode budget (`MCS_CPU_ENCODE_MAX_MB`,
+`MCS_CPU_ENCODE_MB_PER_1K_FRAMES`, `MCS_CPU_ENCODE_MAX_SEGMENTS`), the encoder
+(`MCS_VIDEO_ENCODER`, empty for automatic; `MCS_NVENC_CQ_OFFSET`, `MCS_NVENC_PRESET`), the OCR floors
 (`MCS_OCR_*`), and the model worker's own settings — every `MCS_<NAME>` reaches it as
 `CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE`,
 `MCS_MODEL_PINNED`, `MCS_MODEL_IDLE_EVICT`, `MCS_MODEL_MAX_RSS`, `MCS_INSTRUCT_DEVICE`, …
@@ -573,7 +594,7 @@ decides *when* anything runs. Nothing of that is MCS's business.
 | `decode-image.ts` (RAW/HEIC fallback, `sourceFrame`) | nothing: the model ops decode natively and a crop resolves its fraction against the decoded raster |
 | `describe-file` keyframes, `voice-asd.ts` frame grabs | `video.frames` |
 | `image-ladder.ts` for a video | `video.poster` |
-| `video-to-video`, `video-concat`, `generate-version` | `video.transcode` |
+| `video-to-video`, `video-concat`, `generate-version` | `video.transcode` (the ladder, the budget and the windows are all MCS's) |
 | `audio-to-audio` | `audio.transcode` |
 | `demux-audio.ts` | `audio.extract` (only when MURRiX needs the WAV itself; `speech.*` extract on their own) |
 | `image-ladder.ts` for a recording | `audio.waveform` |

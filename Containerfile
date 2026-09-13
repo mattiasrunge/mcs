@@ -384,6 +384,13 @@ ENV MCS_INSTRUCT_MODEL=${INSTRUCT_MODEL}
 # thread each beats one image at N threads — and one thread per slot is what lets MCS_LIMIT_TOOLS
 # be sized against cores. MURRiX carried this value; it moved with the tool.
 ENV MAGICK_THREAD_LIMIT=1
+# The transcodes' knobs, at the values MURRiX's video-to-video was measured into (its own
+# comments are with `mcs/tools/encode.py`): the CPU decode's projected footprint per window,
+# the constant it is projected from, how many windows one encode may become. MCS_VIDEO_ENCODER
+# is empty on purpose — av1_nvenc when the card and this ffmpeg offer it, libsvtav1 otherwise.
+ENV MCS_CPU_ENCODE_MAX_MB=4000
+ENV MCS_CPU_ENCODE_MB_PER_1K_FRAMES=170
+ENV MCS_CPU_ENCODE_MAX_SEGMENTS=64
 
 EXPOSE 8181
 

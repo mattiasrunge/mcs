@@ -77,3 +77,44 @@ def require(name: str) -> str:
     if path is None:
         raise McsError(TOOL_FAILED, f"{name} is not installed in this MCS", permanent=True)
     return path
+
+
+async def run_streaming(args: list[str], *, timeout: float, on_line, env: dict | None = None) -> Completed:
+    """Like `run`, but each line the tool writes to stdout reaches `on_line` as it appears.
+
+    For ffmpeg's `-progress pipe:1`, which writes `key=value` lines while it works. stderr is
+    still collected whole for the failure message.
+    """
+    nice = which("nice")
+    argv = [nice, "-n", str(NICE), *args] if nice else list(args)
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+        start_new_session=True,
+    )
+
+    async def pump_stdout() -> None:
+        assert proc.stdout is not None
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                return
+            try:
+                await on_line(line.decode(errors="replace").rstrip("\n"))
+            except Exception:  # noqa: BLE001 - a progress consumer must never kill the tool
+                pass
+
+    async def drain_stderr() -> bytes:
+        assert proc.stderr is not None
+        return await proc.stderr.read()
+
+    try:
+        _, stderr, _ = await asyncio.wait_for(asyncio.gather(pump_stdout(), drain_stderr(), proc.wait()), timeout)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        _kill_group(proc)
+        await proc.wait()
+        raise
+    return Completed(list(args), proc.returncode or 0, b"", stderr)

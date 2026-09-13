@@ -1,7 +1,9 @@
 """Bounded concurrency, and a queue that is allowed to say no.
 
-Two lanes: `models` (requests forwarded to the model worker, which serialises per model family
-behind this) and `tools` (CPU and subprocess work in this process). Each lane runs at most
+Three lanes: `models` (requests forwarded to the model worker, which serialises per model
+family behind this), `tools` (CPU and subprocess work in this process) and `encodes` (the
+transcodes, which hold a slot for minutes and must not sit ahead of every probe and rendition
+queued behind them). Each lane runs at most
 `limit` requests at once; an interactive request may also use `reserve` extra slots, so a crawl
 that keeps the lane full never makes a person wait behind it. Past `queue_depth` waiters across
 both lanes a new request is answered `busy` with a `Retry-After` — the caller's own queue is
@@ -36,10 +38,11 @@ class Lane:
 
 
 class Admission:
-    def __init__(self, *, limit_models: int, limit_tools: int, queue_depth: int, interactive_reserve: int):
+    def __init__(self, *, limit_models: int, limit_tools: int, queue_depth: int, interactive_reserve: int, limit_encodes: int = 2):
         self.lanes = {
             "models": Lane("models", limit_models, interactive_reserve),
             "tools": Lane("tools", limit_tools, interactive_reserve),
+            "encodes": Lane("encodes", limit_encodes, 0),
         }
         self.queue_depth = max(0, queue_depth)
 
