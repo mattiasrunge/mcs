@@ -267,6 +267,8 @@ Several sized renditions of one image, from one decode. *long* for large sources
 - Renditions carry **no metadata** (EXIF stripped) and **no orientation tag** — the pixels are
   already upright, and a viewer applying a leftover tag would turn them back.
 - All targets are written or none: every output is validated before any is put in place.
+- A RAW whose sensor image cannot be decoded (a truncated raw section) is rendered from its
+  embedded JPEG when it has one, and the result says so (`"source": "preview"`).
 - At most 32 targets.
 
 Result: `{ "frame": {"width", "height"}, "targets": [ { "path", "width", "height", "bytes" } ] }` —

@@ -206,3 +206,44 @@ async def test_cloned_outputs_match_independently_decoded_ones(tmp_path):
         assert ours == theirs
         # `TopLeft` is what a decoder reports for no transform at all; a leftover `irot` would read as a turn.
         assert ours.startswith(f"{plan.width // 2} {plan.height} ") and ours.split()[3] in ("TopLeft", "Undefined")
+
+
+async def test_a_raw_magick_cannot_demosaic_is_rendered_from_its_embedded_preview(client, roots, monkeypatch):
+    ro, rw = roots
+    (ro / "shot.nef").write_bytes(b"nef")
+    sources = []
+
+    async def failing_then_fine(source, angle, mirror, plans, *, timeout):
+        sources.append(os.path.basename(source))
+        if source.endswith("shot.nef"):
+            raise magick.McsError(magick.TOOL_FAILED, "magick failed: Input/output error")
+        for plan in plans:
+            with open(plan.temp, "wb") as f:
+                f.write(b"p")
+        return magick.Rendered((3040, 2014), [(320, 320)])
+
+    async def fake_preview(src, tmpdir, timeout):
+        out = os.path.join(tmpdir, "preview-JpgFromRaw.jpg")
+        with open(out, "wb") as f:
+            f.write(b"jpeg")
+        return out
+
+    monkeypatch.setattr(magick, "render", failing_then_fine)
+    monkeypatch.setattr(image.decode_tool, "_preview", fake_preview)
+    target = {"output": {"path": str(rw / "320x320.avif")}, "box": {"width": 320, "height": 320}, "fit": "cover"}
+    r = await client.post("/v2/image/renditions", json={"file": {"path": str(ro / "shot.nef"), "mimetype": "image/x-nikon-nef"}, "targets": [target]})
+    body = r.json()
+    assert r.status_code == 200, body
+    assert sources == ["shot.nef", "preview-JpgFromRaw.jpg"] and body["result"]["source"] == "preview"
+    assert (rw / "320x320.avif").read_bytes() == b"p"
+
+    # A JPEG that fails is a failure: there is no preview to fall back to.
+    (ro / "x.jpg").write_bytes(b"jpg")
+    sources.clear()
+
+    async def failing(source, angle, mirror, plans, *, timeout):
+        raise magick.McsError(magick.TOOL_FAILED, "magick failed")
+
+    monkeypatch.setattr(magick, "render", failing)
+    r = await client.post("/v2/image/renditions", json={"file": {"path": str(ro / "x.jpg"), "mimetype": "image/jpeg"}, "targets": [target]})
+    assert r.status_code == 500 and r.json()["error"]["code"] == "tool_failed"

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import shutil
 from typing import Literal
 
 from fastapi import APIRouter, Request
@@ -145,7 +146,27 @@ async def renditions(ctx: Context, req: RenditionsRequest, progress: Progress) -
     async with ctx.admission.slot("tools", interactive=req.options.interactive):
         await progress.emit("render")
         angle = await owed_angle(ctx, path, req.file)
-        result = await render_targets(ctx, path, angle, req.file.mirror, req.targets)
+        try:
+            result = await render_targets(ctx, path, angle, req.file.mirror, req.targets)
+        except McsError as exc:
+            # A RAW ImageMagick cannot demosaic — a truncated raw section reads as an I/O error
+            # in libraw while the file itself opens fine — usually still carries its embedded
+            # JPEG, which is what the model ops fall back to as well. Same raster orientation as
+            # the sensor image (nothing in the RAW path rotates), so the caller's angle applies
+            # whole. Only a `tool_failed` from the render, and only for a RAW: anything else
+            # is answered as it was.
+            if exc.code is not TOOL_FAILED or not decode_tool.is_raw(req.file.mimetype):
+                raise
+            scratch = ctx.scratch_dir("preview")
+            try:
+                preview = await decode_tool._preview(path, scratch, ctx.settings.tool_timeout_seconds)
+                if preview is None:
+                    raise
+                await progress.log("warning", f"rendering from the embedded preview: {exc.message}")
+                result = await render_targets(ctx, preview, angle, req.file.mirror, req.targets)
+                result["source"] = "preview"
+            finally:
+                shutil.rmtree(scratch, ignore_errors=True)
     return Outcome(result, producer=await producer("magick"))
 
 
