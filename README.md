@@ -63,6 +63,12 @@ specified there and not yet needed by any caller.
 
 ## Known issues
 
+- **The first caption after a restart pays the VLM load.** Qwen3-VL loads in 8–14 minutes off
+  local disk (measured 567 s for one photo on fry); `MCS_MODEL_PINNED` exempts a model from
+  idle eviction but does not preload it, so every restart costs the next `vision.describe`
+  that wait. A preload at start — loading the pinned families before the socket answers, or
+  right after — would take the cost off the request path.
+
 - **The ffmpeg pin is written twice.** `Containerfile` declares `ARG FFMPEG_BUILD`/`FFMPEG_ASSET`
   with defaults and the Makefile passes the same two names as `--build-arg`, so the Makefile's
   values win and a repin made only in the Containerfile builds the old ffmpeg without a word
