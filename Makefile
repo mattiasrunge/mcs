@@ -123,7 +123,7 @@ health: ## Ask the running MCS how it is
 
 # --- remote (deploy/hosts/<HOST>.env) ---
 
-remote-%: ## Run a verb on HOST: sync build run stop restart logs status shell gpu-check health
+remote-%: ## Run a verb on HOST: sync build run stop restart logs status shell gpu-check health fix-cdi
 	bash deploy/remote.sh $(HOST) $*
 
 .PHONY: help venv test serve build run stop logs shell gpu-check health voice-bench whisper-coverage

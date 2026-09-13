@@ -50,6 +50,9 @@ case "$VERB" in
   status) remote "podman ps --filter name='${CONTAINER_NAME:-mcs}' --format '{{.Names}} {{.Status}}'; nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true" ;;
   shell) remote -t "podman exec -it '${CONTAINER_NAME:-mcs}' bash" ;;
   gpu-check) remote_make gpu-check ;;
+  # podman 4.9.3 cannot parse the CDI spec nvidia-ctk >= 1.17 writes; re-run after a driver or
+  # toolkit upgrade regenerates it. Needs sudo on the host.
+  fix-cdi) remote -t "cd '$REMOTE_DIR' && sudo bash deploy/fix-cdi.sh && podman run --rm --device nvidia.com/gpu=all docker.io/library/ubuntu:24.04 nvidia-smi -L" ;;
   health) remote "curl -s -H 'Authorization: Bearer ${MCS_KEY:-let-me-in}' http://localhost:${MCS_PORT:-8181}/v2/health" | python3 -m json.tool ;;
   *) echo "remote: unknown verb $VERB" >&2; exit 1 ;;
 esac
