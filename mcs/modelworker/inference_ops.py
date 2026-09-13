@@ -67,9 +67,9 @@ def transcribe_signature(language: str | None = None, min_silence_ms: int | None
     and re-describing would write the same disagreeing value back.
 
     So every setting that changes the output belongs in here, and nothing else does: the
-    model, the VAD, the no-speech ceiling, the language, and whether words are timed.
-    Beam size and the conditioning flag are constants in `transcribe`; if either becomes
-    configurable it goes in too.
+    model, the VAD, the no-speech ceiling, the language — pinned, or how it is detected —
+    and whether words are timed. Beam size and the conditioning flag are constants in
+    `transcribe`; if either becomes configurable it goes in too.
     """
     # Per-request overrides (the HTTP API's `language`, `vad.min_silence_ms`, `word_timestamps`)
     # take part exactly like the configured values do, so a transcript made with them is
@@ -83,9 +83,144 @@ def transcribe_signature(language: str | None = None, min_silence_ms: int | None
         f"{_whisper_model_name()}"
         f":vad={vad['threshold']}/{vad['speech_pad_ms']}/{vad['min_silence_duration_ms']}"
         f",nospeech={registry.WHISPER_NO_SPEECH_PROB_MAX}"
-        f",lang={lang or 'auto'}"
+        f",lang={lang or _detection_signature()}"
         f",words={1 if words else 0}"
     )
+
+
+def _detection_signature() -> str:
+    """`auto:3` — windows read — or `auto:3:sv,en@0.1` with the expected languages and floor.
+
+    A transcript decoded before detection read several windows was stamped `auto`, so the
+    stamp of every auto-detected file changes with this and `media-scan` re-describes them,
+    which is the point: those are the files the single-window guess mislabelled.
+    """
+    tag = f"auto:{registry.WHISPER_LANGUAGE_WINDOWS}"
+    if registry.WHISPER_LANGUAGES:
+        tag += f":{','.join(registry.WHISPER_LANGUAGES)}@{registry.WHISPER_LANGUAGE_FLOOR:g}"
+    return tag
+
+
+def language_votes(model, file_path: str, vad_params: dict, windows: int) -> list:
+    """Whisper's language probabilities for up to `windows` 30-second windows of the speech.
+
+    The audio is decoded and VAD-filtered the way `transcribe` will do it, so what is judged
+    is the speech the decoder will hear, not the file's opening — a clip that starts on
+    wind noise or a doorbell gets judged on what is said after it. The windows are spread
+    across all of that speech (first, middle and last for three), so a guest speaking at
+    the start is one vote among several. A trailing window shorter than five seconds says
+    little and is left out unless it is all there is.
+
+    Each entry maps every language code whisper knows to its probability for that window.
+    Empty when the VAD found no speech; the decoder will find none either.
+    """
+    import math
+
+    import numpy as np
+    from faster_whisper.audio import decode_audio
+    from faster_whisper.vad import VadOptions, collect_chunks, get_speech_timestamps
+
+    rate = model.feature_extractor.sampling_rate
+    audio = decode_audio(file_path, sampling_rate=rate)
+    chunks = get_speech_timestamps(audio, VadOptions(**vad_params))
+    if not chunks:
+        return []
+    speech = np.concatenate(collect_chunks(audio, chunks)[0])
+
+    per_window = model.feature_extractor.n_samples
+    count = max(1, math.ceil(len(speech) / per_window))
+    if count > 1 and len(speech) - (count - 1) * per_window < 5 * rate:
+        count -= 1
+    if count <= windows:
+        picks = range(count)
+    else:
+        picks = sorted({round(i * (count - 1) / (windows - 1)) for i in range(windows)})
+
+    votes = []
+    for index in picks:
+        _language, _probability, all_probs = model.detect_language(audio=speech[index * per_window:(index + 1) * per_window])
+        votes.append(dict(all_probs))
+    return votes
+
+
+# Languages whisper confuses with each other: mutually intelligible neighbours whose
+# probability mass an expected language may claim. Measured on the Swedish archive: a Swedish
+# toddler clip came back `no 0.65, nn 0.30, sv 0.02` and decoded, in Swedish, to "Vart ska
+# du gå då?" — whisper was sure it was Scandinavian and unsure which, and the pinned decode
+# settles it. An English clip with Swedish at the same 0.02 (`en 0.79`) has no such mass on
+# Swedish's neighbours, which is what tells the two apart.
+SIBLINGS = {
+    "sv": ("no", "nn", "da"), "no": ("nn", "sv", "da"), "nn": ("no", "sv", "da"), "da": ("no", "nn", "sv"),
+    "nl": ("af",), "af": ("nl",),
+    "es": ("ca", "gl"), "ca": ("es",), "pt": ("gl",), "gl": ("pt", "es"),
+    "id": ("ms", "jw"), "ms": ("id",),
+    "cs": ("sk",), "sk": ("cs",),
+    "ru": ("uk", "be"), "uk": ("ru",), "be": ("ru",),
+    "hr": ("sr", "bs"), "sr": ("hr", "bs"), "bs": ("hr", "sr"),
+    "hi": ("ur",), "ur": ("hi",),
+    "zh": ("yue",), "yue": ("zh",),
+}
+
+# Below this, the top guess is not a detection. faster-whisper's own default for moving on
+# to another window is the same 0.5; here it is where the archive's main language takes over.
+UNSURE = 0.5
+
+
+def choose_language(votes: list, expected: tuple, floor: float) -> dict | None:
+    """The language to decode in, from the per-window votes; None when there were none.
+
+    Three steps, each measured on the Swedish archive (MURRiX's
+    work/tasks/done/media-whisper-detects-the-wrong-language.md):
+
+    1. Average the windows, each weighted by how sure whisper was of it (its top
+       probability). A Danish museum guide came back `da 0.97` on one window and `en 0.75`,
+       `en 0.60` (with Welsh second — whisper's tell for noise) on two; a plain average
+       made that English, and whisper then *translated* the Danish into fluent English.
+    2. An expected language claims its own probability plus that of its SIBLINGS that are
+       not expected themselves — each sibling's mass going to the first expected language
+       it belongs to, so `sv,da` sends Norwegian to Swedish, not to both. The strongest
+       claim wins if it reaches `floor`. A genuinely foreign clip (English 0.79–0.97,
+       Italian 0.98, Polish 0.98) leaves every expected claim at 0.04 or less.
+    3. If nothing was claimed and the top guess is under UNSURE, whisper did not detect a
+       language — a Swedish holiday clip came back `ja 0.33, ko 0.32` and decoded to "Nu
+       dansar vi lite" — and the first expected language, the archive's main one, applies.
+
+    `detected` is what plain detection would have said, kept so a log line can show when
+    the rule changed the answer.
+    """
+    if not votes:
+        return None
+    total_weight = 0.0
+    average: dict = {}
+    for vote in votes:
+        weight = max(vote.values()) if vote else 0.0
+        total_weight += weight
+        for code, probability in vote.items():
+            average[code] = average.get(code, 0.0) + float(probability) * weight
+    if total_weight > 0:
+        average = {code: mass / total_weight for code, mass in average.items()}
+    top = max(average, key=average.get)
+    choice = top
+    if expected:
+        claims = {code: average.get(code, 0.0) for code in expected}
+        for code, probability in average.items():
+            if code in claims:
+                continue
+            for candidate in expected:
+                if code in SIBLINGS.get(candidate, ()):
+                    claims[candidate] += probability
+                    break
+        best = max(expected, key=claims.get)
+        if claims[best] >= floor:
+            choice = best
+        elif average[top] < UNSURE:
+            choice = expected[0]
+    return {
+        "language": choice,
+        "probability": average.get(choice, 0.0),
+        "detected": top,
+        "detected_probability": average[top],
+    }
 
 
 def _resize_image(image):
@@ -453,10 +588,12 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
     The decode arguments are not defaults. See model_registry for why each is set:
     VAD (whisper_vad_parameters) so silence is not decoded into invented speech, tuned so
     that faint and outdoor speech still reaches the decoder; no conditioning on previous text
-    so a bad segment cannot drag the rest of the file into a repetition loop; an optional
-    language (WHISPER_LANGUAGE) so a noisy first 30 seconds cannot mislabel an entire
-    recording; and a ceiling on the decoder's own no-speech score (WHISPER_NO_SPEECH_PROB_MAX)
-    that drops the fluent sentences it invents over a window it rated as silence.
+    so a bad segment cannot drag the rest of the file into a repetition loop; the language
+    either pinned (WHISPER_LANGUAGE) or detected over several windows of the speech with the
+    expected languages given the benefit of the doubt (WHISPER_LANGUAGES, `language_votes`
+    and `choose_language`), so a noisy first 30 seconds cannot mislabel an entire recording;
+    and a ceiling on the decoder's own no-speech score (WHISPER_NO_SPEECH_PROB_MAX) that
+    drops the fluent sentences it invents over a window it rated as silence.
     """
     import torch
 
@@ -485,11 +622,25 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
             model = registry.whisper(device, compute_type)
 
         try:
+            # Detection is ours, not the decoder's: whisper would read the first window of
+            # the file and decide for all of it. The choice is then handed to the decoder as
+            # if it were pinned, so every window is decoded in the same language.
+            detected = None
+            if not lang_hint:
+                votes = language_votes(model, file_path, vad_params, registry.WHISPER_LANGUAGE_WINDOWS)
+                detected = choose_language(votes, registry.WHISPER_LANGUAGES, registry.WHISPER_LANGUAGE_FLOOR)
+                if detected and detected["language"] != detected["detected"]:
+                    print(
+                        f"transcribe: {os.path.basename(file_path)}: decoding as {detected['language']} "
+                        f"({detected['probability']:.2f}) over detected {detected['detected']} "
+                        f"({detected['detected_probability']:.2f}) across {len(votes)} windows",
+                        file=sys.stderr, flush=True,
+                    )
             # segments is a generator — consume it before releasing the model.
             segments, info = model.transcribe(
                 file_path,
                 beam_size=5,
-                language=lang_hint or None,
+                language=lang_hint or (detected["language"] if detected else None),
                 vad_filter=True,
                 vad_parameters=vad_params,
                 condition_on_previous_text=False,
@@ -522,10 +673,12 @@ def transcribe(file_path: str, language: str | None = None, min_silence_ms: int 
                     entry["words"] = aligned
                 out.append(entry)
             # `info` is only safe to read after the generator is drained — faster-whisper
-            # fills in the detected language as it decodes the first window.
+            # fills in the detected language as it decodes the first window. When the
+            # language was detected here, the reported probability is the averaged one the
+            # choice was made on, not the 1.0 the decoder reports for a language it was told.
             return out, {
-                "language": info.language,
-                "language_probability": float(info.language_probability or 0.0),
+                "language": detected["language"] if detected else info.language,
+                "language_probability": float(detected["probability"] if detected else info.language_probability or 0.0),
                 "duration": float(info.duration or 0.0),
             }
         finally:

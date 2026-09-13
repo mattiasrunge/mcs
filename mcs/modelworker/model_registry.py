@@ -84,15 +84,56 @@ PINNED_FAMILIES = {
 # share anyway.
 WHISPER_MODEL = os.environ.get('CFG_WHISPER_MODEL', 'large-v3')
 
-# Language whisper is told to expect, as an ISO-639-1 code. Empty means auto-detect.
+# Language whisper is told to expect, as an ISO-639-1 code. Empty means detect it, the way
+# WHISPER_LANGUAGES below describes.
 #
-# Detection reads only the first 30 seconds, and it decides for the *whole file*. A home
-# video that opens on wind noise, a doorbell or a single English loanword is routinely
-# detected as Danish or Norwegian, and every following sentence is then decoded as that
-# language — the output looks like speech and is entirely wrong, which is worse than
-# nothing because it goes into search. Naming the language the archive is mostly in avoids
-# that; leave it empty for a mixed corpus where detection is the lesser risk.
+# This is a pin: every file is decoded as this language, detection never runs. Right for a
+# corpus in one language only; a family archive with holiday clips is not one, and a pin
+# decodes the English of a Las Vegas clip into Swedish-shaped nonsense. Prefer
+# WHISPER_LANGUAGES for that case.
 WHISPER_LANGUAGE = os.environ.get('CFG_WHISPER_LANGUAGE', '').strip()
+
+# Languages the archive is expected to hold, as ISO-639-1 codes separated by commas, most
+# common first, used when WHISPER_LANGUAGE is empty. Empty means detection alone decides.
+#
+# Whisper's own detection reads one 30-second window and decides for the *whole file*, and
+# on a Swedish home archive it is confidently wrong often enough to matter: a clip that
+# opens on wind noise, a doorbell or a single loanword is detected as Norwegian or Danish —
+# at 0.86, so it does not look like a failure — and every sentence after it is decoded as
+# that language (`ikke` and `hadde` for `inte` and `hade`). Worse than wrong words: told the
+# wrong language, whisper *translates* — a Danish museum guide detected as English came
+# back as 332 words of fluent English. The output reads as speech and goes into search.
+#
+# So detection here (inference_ops.language_votes and choose_language) reads
+# WHISPER_LANGUAGE_WINDOWS windows spread across the speech the VAD found, not the first 30
+# seconds of the file, and averages them weighted by how sure whisper was of each. An
+# expected language then claims its own probability plus that of the neighbours whisper
+# confuses it with (Norwegian, Nynorsk and Danish for Swedish; inference_ops.SIBLINGS), and
+# wins when the claim reaches WHISPER_LANGUAGE_FLOOR. When nothing is claimed and the top
+# guess is under 0.5, whisper has not detected anything, and the first language listed —
+# the archive's main one — applies. A genuinely foreign clip (English in Hawaii at 0.94,
+# the Polish wedding at 0.98) leaves every claim at 0.04 or less and is decoded as what it
+# is. Measured 2026-09-13 on 28 fry2 clips whisper had labelled no, da, en, fr, ja, it, pl,
+# de, es, nl and sv: every Swedish clip came out Swedish, every foreign one stayed foreign;
+# MURRiX's work/tasks/done/media-whisper-detects-the-wrong-language.md has the table.
+#
+# What this cannot do is tell a Norwegian relative from a Swedish one when only `sv` is
+# listed: the Norwegian is decoded as Swedish. List the languages that really occur, in
+# order — a neighbour's mass goes to the first listed language it belongs to.
+WHISPER_LANGUAGES = tuple(
+    code.strip() for code in os.environ.get('CFG_WHISPER_LANGUAGES', '').split(',') if code.strip()
+)
+
+# The claim an expected language needs to be chosen over the top guess. On the sample the
+# Swedish claims on Swedish clips were 0.31–0.99 and on foreign clips at most 0.04; 0.1
+# sits in the gap on the side that keeps a foreign clip foreign.
+WHISPER_LANGUAGE_FLOOR = float(os.environ.get('CFG_WHISPER_LANGUAGE_FLOOR', '0.1'))
+
+# How many 30-second windows of speech the detection reads. Each is one encoder pass, the
+# same cost as transcribing that window, so a short clip pays for it twice and a long one
+# hardly notices; the windows are spread over the whole clip so an opening on noise, or a
+# guest speaking at the start, is one vote among several rather than the verdict.
+WHISPER_LANGUAGE_WINDOWS = max(1, int(os.environ.get('CFG_WHISPER_LANGUAGE_WINDOWS', '3')))
 
 # Whether to align each word to its own timestamp, rather than each segment.
 #

@@ -400,8 +400,14 @@ An embedding for a face the caller already located: `{ "file", "box": {…} }` �
 { "file": {…}, "language": "sv", "vad": { "min_silence_ms": 500 }, "word_timestamps": false }
 ```
 
-Any container with sound; MCS extracts the audio itself. `language` is an ISO-639-1 hint that
-skips detection (detection reads the first 30 s and applies its guess to the whole file).
+Any container with sound; MCS extracts the audio itself. `language` is an ISO-639-1 code that
+pins the decode and skips detection. Without it MCS detects the language over several windows
+spread across the speech the VAD found (not whisper's own first-30-seconds guess, which
+mislabels a Swedish clip that opens on noise as Norwegian and decodes all of it that way), and
+lets the operator's expected languages (`MCS_WHISPER_LANGUAGES`, with `MCS_WHISPER_LANGUAGE_FLOOR`
+and `MCS_WHISPER_LANGUAGE_WINDOWS`, §6) win when the averaged probability reaches the floor —
+so a genuinely foreign clip is still decoded as what it is. The reported `language_probability`
+is that averaged probability for the language chosen.
 
 ```json
 { "speech": true, "language": "sv", "language_probability": 0.98, "duration": 61.4,
@@ -572,8 +578,10 @@ the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_LIMIT_ENCODES`
 `MCS_CPU_ENCODE_MB_PER_1K_FRAMES`, `MCS_CPU_ENCODE_MAX_SEGMENTS`), the encoder
 (`MCS_VIDEO_ENCODER`, empty for automatic; `MCS_NVENC_CQ_OFFSET`, `MCS_NVENC_PRESET`), the OCR floors
 (`MCS_OCR_*`), and the model worker's own settings — every `MCS_<NAME>` reaches it as
-`CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE`,
-`MCS_MODEL_PINNED`, `MCS_MODEL_IDLE_EVICT`, `MCS_MODEL_MAX_RSS`, `MCS_INSTRUCT_DEVICE`, …
+`CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE` (a pin),
+`MCS_WHISPER_LANGUAGES` / `MCS_WHISPER_LANGUAGE_FLOOR` / `MCS_WHISPER_LANGUAGE_WINDOWS` (detection
+biased towards the languages the archive holds; `mcs/modelworker/model_registry.py` has the
+reasoning), `MCS_MODEL_PINNED`, `MCS_MODEL_IDLE_EVICT`, `MCS_MODEL_MAX_RSS`, `MCS_INSTRUCT_DEVICE`, …
 Changing any of them is a restart. `capabilities` and `health` are how a caller learns what a
 given MCS is running; there is no configuration API.
 

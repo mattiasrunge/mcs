@@ -22,6 +22,7 @@ TARGET="$REMOTE_USER@$REMOTE_HOST"
 FORWARD=(IMAGE_NAME CONTAINER_NAME MCS_PORT MCS_KEY MCS_ROOTS FILES_PATH OLD_PATH VOLATILE_PATH TMP_PATH MCS_MEMORY GPU TZ
          TORCH_CUDA INSTRUCT_MODEL VLM_MODEL FFMPEG_BUILD FFMPEG_ASSET
          MCS_MODEL_PINNED MCS_MODEL_IDLE_EVICT MCS_MODEL_MAX_RSS MCS_INSTRUCT_DEVICE MCS_VLM_QUANT MCS_WHISPER_LANGUAGE
+         MCS_WHISPER_LANGUAGES MCS_WHISPER_LANGUAGE_FLOOR MCS_WHISPER_LANGUAGE_WINDOWS
          MCS_LIMIT_TOOLS MCS_LIMIT_MODELS MCS_LIMIT_ENCODES MCS_CPU_ENCODE_MAX_MB MCS_CPU_ENCODE_MB_PER_1K_FRAMES
          MCS_CPU_ENCODE_MAX_SEGMENTS MCS_VIDEO_ENCODER MCS_ENCODE_TIMEOUT)
 make_args=()
@@ -50,6 +51,9 @@ case "$VERB" in
   status) remote "podman ps --filter name='${CONTAINER_NAME:-mcs}' --format '{{.Names}} {{.Status}}'; nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader 2>/dev/null || true" ;;
   shell) remote -t "podman exec -it '${CONTAINER_NAME:-mcs}' bash" ;;
   gpu-check) remote_make gpu-check ;;
+  # The benches read this checkout through a read-only mount, so they sync first; the image
+  # is the one already built on the host.
+  whisper-coverage) sync; remote_make "whisper-coverage WHISPER_COVERAGE_ARGS=$(printf %q "${WHISPER_COVERAGE_ARGS:-}")" ;;
   # podman 4.9.3 cannot parse the CDI spec nvidia-ctk >= 1.17 writes; re-run after a driver or
   # toolkit upgrade regenerates it. Needs sudo on the host.
   fix-cdi) remote -t "cd '$REMOTE_DIR' && sudo bash deploy/fix-cdi.sh && podman run --rm --device nvidia.com/gpu=all docker.io/library/ubuntu:24.04 nvidia-smi -L" ;;

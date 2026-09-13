@@ -86,6 +86,9 @@ run: ## Run the container (GPU=1 for NVIDIA; FILES_PATH/OLD_PATH/VOLATILE_PATH/T
 		$(if $(MCS_INSTRUCT_DEVICE),-e MCS_INSTRUCT_DEVICE=$(MCS_INSTRUCT_DEVICE),) \
 		$(if $(MCS_VLM_QUANT),-e MCS_VLM_QUANT=$(MCS_VLM_QUANT),) \
 		$(if $(MCS_WHISPER_LANGUAGE),-e MCS_WHISPER_LANGUAGE=$(MCS_WHISPER_LANGUAGE),) \
+		$(if $(MCS_WHISPER_LANGUAGES),-e MCS_WHISPER_LANGUAGES=$(MCS_WHISPER_LANGUAGES),) \
+		$(if $(MCS_WHISPER_LANGUAGE_FLOOR),-e MCS_WHISPER_LANGUAGE_FLOOR=$(MCS_WHISPER_LANGUAGE_FLOOR),) \
+		$(if $(MCS_WHISPER_LANGUAGE_WINDOWS),-e MCS_WHISPER_LANGUAGE_WINDOWS=$(MCS_WHISPER_LANGUAGE_WINDOWS),) \
 		$(if $(TZ),-e TZ=$(TZ),) \
 		-v $(FILES_PATH):/files:ro \
 		-v $(OLD_PATH):/old:ro \
@@ -123,7 +126,7 @@ health: ## Ask the running MCS how it is
 
 # --- remote (deploy/hosts/<HOST>.env) ---
 
-remote-%: ## Run a verb on HOST: sync build run stop restart logs status shell gpu-check health fix-cdi
+remote-%: ## Run a verb on HOST: sync build run stop restart logs status shell gpu-check whisper-coverage health fix-cdi
 	bash deploy/remote.sh $(HOST) $*
 
 .PHONY: help venv test serve build run stop logs shell gpu-check health voice-bench whisper-coverage

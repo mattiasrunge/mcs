@@ -33,6 +33,17 @@ deletes speech inside a region still gets a cue stretched across the whole regio
 is the count after the pipeline's own no-speech guard (model_registry.WHISPER_NO_SPEECH_PROB_MAX),
 i.e. what would actually be written; `--text` prints every decode with its suspect lines
 marked, which is how a number is checked against what was said.
+
+The second question the VAD sweep raised was the language: Swedish clips detected as
+Norwegian at 0.86 and decoded into it. `--languages` runs the pipeline's own detection
+(inference_ops.language_votes, several windows across the speech) on every file, prints each
+window's guesses and the average, and then what choose_language would decide for a set of
+expected languages at each of several floors — so a floor can be picked by reading which
+value keeps the Swedish clips Swedish without turning the Hawaii clip Swedish too. Where the
+choice differs from whisper's own top guess, both decodes are printed for reading.
+
+    make remote-whisper-coverage HOST=fry2 WHISPER_COVERAGE_ARGS="--languages --expect sv \\
+        --file /files/2R/… --file /files/QA/…"
 """
 
 import argparse
@@ -228,6 +239,71 @@ def sweep(model, files: list, language: str, registry, only: list, show_text: bo
         print(f"    {label:<{width}}  {t:13d} ({tk:5d})  {s:12d} ({sk:5d})")
 
 
+# --- the language sweep ----------------------------------------------------------------------
+
+# Floors tried for the expected languages, so the printout answers "which value" in one run.
+FLOORS = (0.02, 0.05, 0.1, 0.2, 0.3)
+
+
+def top(probabilities: dict, n: int) -> str:
+    """`sv 0.62  no 0.21  da 0.09` — the n most probable languages of one distribution."""
+    ranked = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)[:n]
+    return "  ".join(f"{code} {probability:.2f}" for code, probability in ranked)
+
+
+def languages(model, files: list, expected: tuple, registry, ops, show_text: bool) -> None:
+    vad = registry.whisper_vad_parameters()
+    windows = registry.WHISPER_LANGUAGE_WINDOWS
+    print(f"expected languages {','.join(expected) or '(none)'}; {windows} windows per file; floors {FLOORS}")
+    # verdicts[floor] = [files where an expected language won over another top guess]
+    verdicts = {floor: [] for floor in FLOORS}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for index, (path, _silent) in enumerate(files):
+            wav = os.path.join(tmp, f"{index}.wav")
+            print(f"\n=== {path}", flush=True)
+            if not demux(path, wav):
+                print("    no audio stream")
+                continue
+            votes = ops.language_votes(model, wav, vad, windows)
+            if not votes:
+                print("    the VAD found no speech")
+                os.remove(wav)
+                continue
+            for number, vote in enumerate(votes):
+                print(f"    window {number + 1}: {top(vote, 4)}")
+            average = {}
+            for vote in votes:
+                for code, probability in vote.items():
+                    average[code] = average.get(code, 0.0) + probability / len(votes)
+            print(f"    average:  {top(average, 5)}")
+            line = []
+            for floor in FLOORS:
+                choice = ops.choose_language(votes, expected, floor)
+                line.append(f"@{floor:g} {choice['language']}")
+                if choice["language"] != choice["detected"]:
+                    verdicts[floor].append(path)
+            print(f"    choice:   {'  '.join(line)}")
+
+            # Both decodes when the expected language wins at any floor: what whisper's own
+            # guess writes, against what the expected language writes.
+            contested = ops.choose_language(votes, expected, min(FLOORS))
+            if contested["language"] != contested["detected"]:
+                for label, code in ((f"decoded as detected {contested['detected']}", contested["detected"]),
+                                    (f"decoded as expected {contested['language']}", contested["language"])):
+                    result = measure(model, wav, registry.WHISPER_NO_SPEECH_PROB_MAX, language=code,
+                                     vad_filter=True, vad_parameters=vad)
+                    print(f"    {label}: {result['segments']} segments, {result['words']} words, {result['kept']} kept")
+                    print(f"        {result['text'][:600 if show_text else 300]}")
+            os.remove(wav)
+
+    print("\n=== files where an expected language overrode the top guess, per floor")
+    for floor in FLOORS:
+        print(f"    @{floor:g}: {len(verdicts[floor])}")
+        for path in verdicts[floor]:
+            print(f"        {path}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", action="append", default=[],
@@ -241,6 +317,10 @@ def main() -> int:
     parser.add_argument("--text", action="store_true", help="--sweep: also print each decode's text")
     parser.add_argument("--setting", action="append", default=[],
                         help="--sweep: run only settings whose label contains this (repeatable); e.g. --setting pipeline --setting before --setting off")
+    parser.add_argument("--languages", action="store_true",
+                        help="print the multi-window language detection and what each floor would choose, per file")
+    parser.add_argument("--expect", action="append", default=[],
+                        help="--languages: an expected language (repeatable); default the configured CFG_WHISPER_LANGUAGES, or sv")
     args = parser.parse_args()
 
     files = [(path, False) for path in args.file] + [(path, True) for path in args.silent]
@@ -256,6 +336,12 @@ def main() -> int:
     import model_registry as registry  # noqa: E402
 
     model = registry.whisper("cuda", "float16")
+
+    if args.languages:
+        import inference_ops as ops  # noqa: E402
+        expected = tuple(args.expect) or registry.WHISPER_LANGUAGES or ("sv",)
+        languages(model, files, expected, registry, ops, args.text)
+        return 0
 
     if args.sweep:
         sweep(model, files, args.language or "", registry, args.setting, args.text)
