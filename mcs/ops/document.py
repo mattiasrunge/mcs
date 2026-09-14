@@ -23,6 +23,7 @@ from ..context import Context
 from ..errors import McsError, TOOL_FAILED, UNSUPPORTED
 from ..schemas import FileRef, WithOptions
 from ..streaming import Outcome, Progress, run_op
+from ..tools.run import NICE
 from ..tools.versions import tool_version
 from .media import kind_of
 
@@ -32,6 +33,14 @@ from .media import kind_of
 # on the front's own environment because pytesseract spawns the binary with it; the model
 # worker is spawned without it (worker.TOOL_ONLY_ENV), since torch on the CPU wants the cores.
 os.environ.setdefault("OMP_THREAD_LIMIT", "1")
+
+# And at the tools' priority, like every other tool here. pytesseract spawns the binary itself
+# rather than through tools/run.py, so it does not get that wrapper's `nice -n 10` for free;
+# `nice=` is its own way of prepending the same thing. Without it a document crawl ran four
+# tesseracts at the front's priority on a six-core host — load average 22 — and the model
+# worker, which needs a few milliseconds of CPU to answer an embed, could not get scheduled
+# inside a search box's two-second budget.
+OCR_NICE = NICE
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ODT = "application/vnd.oasis.opendocument.text"
@@ -72,7 +81,7 @@ def _ocr_page(page, index: int, lang: str) -> str:
     try:
         pixmap = page.get_pixmap(matrix=fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72))
         image = Image.open(io.BytesIO(pixmap.tobytes("png")))
-        return pytesseract.image_to_string(image, lang=lang).strip()
+        return pytesseract.image_to_string(image, lang=lang, nice=OCR_NICE).strip()
     except Exception:  # noqa: BLE001 - OCR is a bonus, never fatal
         return ""
 
@@ -148,11 +157,11 @@ def extract_image(path: str, lang: str) -> tuple[str, int, str]:
     Image.MAX_IMAGE_PIXELS = 500_000_000
     image = Image.open(path)
     try:
-        data = pytesseract.image_to_data(image, lang=lang, output_type=Output.DICT)
+        data = pytesseract.image_to_data(image, lang=lang, nice=OCR_NICE, output_type=Output.DICT)
     except TypeError:
         # pytesseract accepts a fixed allowlist of PIL formats (MPO-wrapped JPEGs are not on
         # it); convert() clears .format and it re-encodes as PNG instead.
-        data = pytesseract.image_to_data(image.convert("RGB"), lang=lang, output_type=Output.DICT)
+        data = pytesseract.image_to_data(image.convert("RGB"), lang=lang, nice=OCR_NICE, output_type=Output.DICT)
     text = _confident_text(data)
     if sum(c.isalnum() for c in text) < MIN_IMAGE_TEXT_CHARS:
         return "", 0, "ocr"
