@@ -513,7 +513,8 @@ Liveness and what is loaded:
 
 ```json
 { "ok": true, "api": "2.0.0", "uptime": 86400,
-  "gpu": { "present": true, "vram_allocated_mb": 6100, "vram_reserved_mb": 7900 },
+  "gpu": { "present": true, "vram_allocated_mb": 6100, "vram_reserved_mb": 7900,
+           "util_pct": 37, "mem_used_mb": 8123, "mem_total_mb": 16311, "temp_c": 51 },
   "models": { "vlm": { "loaded": true, "device": "cuda" }, "minilm": { "loaded": true, "device": "cuda" } },
   "worker": { "running": true, "restarts": 0 },
   "process": { "rss_mb": 6200, "max_rss_mb": 12000, "recycles": 0, "uptime": 86000 },
@@ -527,6 +528,14 @@ Liveness and what is loaded:
 
 `degraded` lists silent fallbacks currently in effect (captioning pushed to the CPU by a full
 card) — the things that are otherwise indistinguishable from "slow".
+
+`gpu` has two views of the card. `vram_allocated_mb` / `vram_reserved_mb` are torch's own
+accounting for this MCS's models, present while the model worker has torch loaded. `util_pct`,
+`mem_used_mb`, `mem_total_mb` and `temp_c` are the whole card as `nvidia-smi` reports it — every
+process on it, the transcodes included — present when the container can run `nvidia-smi`, and
+read at most once every few seconds however often health is asked. A caller charting the card
+(MURRiX's metrics sampler) reads the second set and treats its absence as "no card to chart",
+not as an idle one.
 
 ### 4.23 `system.capabilities` — `GET /v2/capabilities` *(implemented)*
 

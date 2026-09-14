@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 
@@ -11,16 +12,64 @@ from .. import API_VERSION
 from ..context import Context
 from ..errors import McsError
 from ..tools import encode
-from ..tools.run import which
+from ..tools.run import run, which
 from ..tools.versions import tool_version
 from . import transcode
 
 TOOLS = ("exiftool", "ffprobe", "ffmpeg", "fpcalc", "tesseract", "magick")
 
 
-def _gpu() -> dict:
+# The whole card, as `nvidia-smi` reports it: what every process on the card is doing, not what
+# this one's torch has allocated. MURRiX's metrics sampler charts this — the card left its
+# container with the models, so its dashboard has no other source — and it asks every 15 s;
+# `nvidia-smi` costs tens of milliseconds and a fork, so one reading serves every health request
+# for a few seconds rather than each request paying for its own.
+SMI_QUERY = "utilization.gpu,memory.used,memory.total,temperature.gpu"
+SMI_FIELDS = ("util_pct", "mem_used_mb", "mem_total_mb", "temp_c")
+SMI_TIMEOUT = 5.0
+SMI_CACHE_SECONDS = 5.0
+_smi_cache: dict = {"at": 0.0, "stats": None}
+
+
+def parse_smi(text: str) -> dict | None:
+    """The first card of a `--format=csv,noheader,nounits` answer, or None for anything else."""
+    line = text.strip().splitlines()[0].strip() if text.strip() else ""
+    parts = [part.strip() for part in line.split(",")]
+    if len(parts) < len(SMI_FIELDS):
+        return None
+    try:
+        values = [int(float(part)) for part in parts[: len(SMI_FIELDS)]]
+    except ValueError:
+        # "[N/A]" or "[Not Supported]" — a card, or a driver, that does not answer this query.
+        return None
+    return dict(zip(SMI_FIELDS, values))
+
+
+async def _card_stats() -> dict | None:
+    """Utilization, memory and temperature of the first card, or None without `nvidia-smi`."""
+    now = time.monotonic()
+    if now - _smi_cache["at"] < SMI_CACHE_SECONDS:
+        return _smi_cache["stats"]
+    stats = None
+    smi = which("nvidia-smi")
+    if smi:
+        try:
+            done = await run([smi, f"--query-gpu={SMI_QUERY}", "--format=csv,noheader,nounits"], timeout=SMI_TIMEOUT)
+            if done.code == 0:
+                stats = parse_smi(done.stdout.decode(errors="replace"))
+        except (asyncio.TimeoutError, OSError):
+            stats = None
+    _smi_cache.update(at=now, stats=stats)
+    return stats
+
+
+async def _gpu() -> dict:
     present = bool([d for d in os.listdir("/dev") if d.startswith("nvidia")]) if os.path.isdir("/dev") else False
-    return {"present": present}
+    gpu: dict = {"present": present}
+    stats = await _card_stats() if present else None
+    if stats:
+        gpu.update(stats)
+    return gpu
 
 
 def _models_from_worker(health: dict | None) -> dict:
@@ -43,7 +92,7 @@ def register(router: APIRouter, ctx: Context) -> None:
             "ok": True,
             "api": API_VERSION,
             "uptime": round(time.time() - ctx.started_at, 1),
-            "gpu": _gpu(),
+            "gpu": await _gpu(),
             "models": _models_from_worker(worker),
             "worker": {"running": worker is not None, "restarts": ctx.worker.restarts},
             "queues": ctx.admission.snapshot(),
