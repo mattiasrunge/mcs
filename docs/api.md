@@ -505,7 +505,8 @@ first balanced JSON object in the completion — the caller still validates what
 `{ "file", "ocr": "auto" | "always" | "never", "languages": ["swe", "eng"] }` →
 `{ "text": "…", "pages": 5, "method": "pdf-text" | "ocr" | "docx" | "odf" }`. `auto` runs OCR
 only when the document carries no usable text layer. A document that cannot be opened is
-`unsupported` (permanent).
+`unsupported` (permanent), and so is a camera RAW — a sensor dump has no text and PIL cannot open
+one. An image whose OCR exceeds `MCS_OCR_TIMEOUT_SECONDS` answers with empty text.
 
 ### 4.22 `system.health` — `GET /v2/health` *(implemented)*
 
@@ -586,7 +587,8 @@ the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_LIMIT_ENCODES`
 `MCS_ENCODE_TIMEOUT`, the transcode budget (`MCS_CPU_ENCODE_MAX_MB`,
 `MCS_CPU_ENCODE_MB_PER_1K_FRAMES`, `MCS_CPU_ENCODE_MAX_SEGMENTS`), the encoder
 (`MCS_VIDEO_ENCODER`, empty for automatic; `MCS_NVENC_CQ_OFFSET`, `MCS_NVENC_PRESET`), the OCR floors
-(`MCS_OCR_*`), and the model worker's own settings — every `MCS_<NAME>` reaches it as
+(`MCS_OCR_*`) and the per-image tesseract deadline (`MCS_OCR_TIMEOUT_SECONDS`, 120; past it the
+image counts as having no text — a killed run, not an orphan holding a tools slot), and the model worker's own settings — every `MCS_<NAME>` reaches it as
 `CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE` (a pin),
 `MCS_WHISPER_LANGUAGES` / `MCS_WHISPER_LANGUAGE_FLOOR` / `MCS_WHISPER_LANGUAGE_WINDOWS` (detection
 biased towards the languages the archive holds; `mcs/modelworker/model_registry.py` has the

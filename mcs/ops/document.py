@@ -23,6 +23,7 @@ from ..context import Context
 from ..errors import McsError, TOOL_FAILED, UNSUPPORTED
 from ..schemas import FileRef, WithOptions
 from ..streaming import Outcome, Progress, run_op
+from ..tools.decode import is_raw
 from ..tools.run import NICE
 from ..tools.versions import tool_version
 from .media import kind_of
@@ -50,6 +51,16 @@ MIN_PAGE_TEXT_CHARS = int(os.environ.get("MCS_OCR_MIN_PAGE_CHARS", "32"))
 MAX_OCR_PAGES = int(os.environ.get("MCS_OCR_MAX_PAGES", "40"))
 MIN_IMAGE_TEXT_CHARS = int(os.environ.get("MCS_OCR_MIN_IMAGE_CHARS", "12"))
 MIN_WORD_CONF = float(os.environ.get("MCS_OCR_MIN_WORD_CONF", "60"))
+# The longest one tesseract run may take. Photos of textured surfaces — a renovation's bare
+# walls, five of them on fry2 on 2026-09-16 — send tesseract into a pass that has not finished
+# after twenty-five minutes at 70 % of a core. The caller gives up at its own deadline, but a
+# closed connection does not reach a binary pytesseract spawned inside a thread, so each such
+# image left an orphan holding a tools slot: five images, two attempts, and the lane was full
+# for three hours while fingerprints and renditions queued behind them into their own
+# deadlines. Past this the run is killed and the image counts as having no text, which for a
+# photo is the honest answer; a scanned page that genuinely needs longer is what the setting
+# is for.
+OCR_TIMEOUT_SECONDS = float(os.environ.get("MCS_OCR_TIMEOUT_SECONDS", "120"))
 MIN_WORD_CHARS = 2
 DEFAULT_LANGUAGES = ("swe", "eng")
 
@@ -81,7 +92,7 @@ def _ocr_page(page, index: int, lang: str) -> str:
     try:
         pixmap = page.get_pixmap(matrix=fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72))
         image = Image.open(io.BytesIO(pixmap.tobytes("png")))
-        return pytesseract.image_to_string(image, lang=lang, nice=OCR_NICE).strip()
+        return pytesseract.image_to_string(image, lang=lang, nice=OCR_NICE, timeout=OCR_TIMEOUT_SECONDS).strip()
     except Exception:  # noqa: BLE001 - OCR is a bonus, never fatal
         return ""
 
@@ -157,11 +168,18 @@ def extract_image(path: str, lang: str) -> tuple[str, int, str]:
     Image.MAX_IMAGE_PIXELS = 500_000_000
     image = Image.open(path)
     try:
-        data = pytesseract.image_to_data(image, lang=lang, nice=OCR_NICE, output_type=Output.DICT)
-    except TypeError:
-        # pytesseract accepts a fixed allowlist of PIL formats (MPO-wrapped JPEGs are not on
-        # it); convert() clears .format and it re-encodes as PNG instead.
-        data = pytesseract.image_to_data(image.convert("RGB"), lang=lang, nice=OCR_NICE, output_type=Output.DICT)
+        try:
+            data = pytesseract.image_to_data(image, lang=lang, nice=OCR_NICE, output_type=Output.DICT, timeout=OCR_TIMEOUT_SECONDS)
+        except TypeError:
+            # pytesseract accepts a fixed allowlist of PIL formats (MPO-wrapped JPEGs are not on
+            # it); convert() clears .format and it re-encodes as PNG instead.
+            data = pytesseract.image_to_data(image.convert("RGB"), lang=lang, nice=OCR_NICE, output_type=Output.DICT, timeout=OCR_TIMEOUT_SECONDS)
+    except RuntimeError as exc:
+        # pytesseract's timeout: the binary is killed and this is raised. No text, see
+        # OCR_TIMEOUT_SECONDS.
+        if "timeout" not in str(exc).lower():
+            raise
+        return "", 0, "ocr"
     text = _confident_text(data)
     if sum(c.isalnum() for c in text) < MIN_IMAGE_TEXT_CHARS:
         return "", 0, "ocr"
@@ -180,6 +198,12 @@ def extract(path: str, mimetype: str | None, ocr: str, lang: str) -> tuple[str, 
         return extract_docx(path)
     if mimetype == ODT:
         return extract_odt(path)
+    if is_raw(mimetype):
+        # A sensor dump has no text to read, and PIL cannot open one: the libtiff reader
+        # fails with an OSError ("Error setting from dictionary") that is not in
+        # PERMANENT_ERRORS, so 81 DNGs on fry2 each cost three attempts and a failed
+        # instance. Refused up front, permanently, like any other format with no extractor.
+        raise McsError(UNSUPPORTED, f"no text extractor for camera RAW ({mimetype})")
     if mimetype and mimetype.startswith("image/"):
         if ocr == "never":
             return "", 0, "ocr"
