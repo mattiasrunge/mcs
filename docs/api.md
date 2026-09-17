@@ -588,7 +588,9 @@ the admission limits (`MCS_LIMIT_MODELS`, `MCS_LIMIT_TOOLS`, `MCS_LIMIT_ENCODES`
 `MCS_CPU_ENCODE_MB_PER_1K_FRAMES`, `MCS_CPU_ENCODE_MAX_SEGMENTS`), the encoder
 (`MCS_VIDEO_ENCODER`, empty for automatic; `MCS_NVENC_CQ_OFFSET`, `MCS_NVENC_PRESET`), the OCR floors
 (`MCS_OCR_*`) and the per-image tesseract deadline (`MCS_OCR_TIMEOUT_SECONDS`, 120; past it the
-image counts as having no text — a killed run, not an orphan holding a tools slot), and the model worker's own settings — every `MCS_<NAME>` reaches it as
+image counts as having no text). tesseract is spawned through `tools/run.py` like every other
+tool, so a deadline or a client that hangs up kills it rather than leaving it holding a tools
+slot, and the model worker's own settings — every `MCS_<NAME>` reaches it as
 `CFG_<NAME>`: `MCS_VLM_MODEL`, `MCS_VLM_QUANT`, `MCS_WHISPER_MODEL`, `MCS_WHISPER_LANGUAGE` (a pin),
 `MCS_WHISPER_LANGUAGES` / `MCS_WHISPER_LANGUAGE_FLOOR` / `MCS_WHISPER_LANGUAGE_WINDOWS` (detection
 biased towards the languages the archive holds; `mcs/modelworker/model_registry.py` has the

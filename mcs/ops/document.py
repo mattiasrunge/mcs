@@ -13,8 +13,8 @@ floor of alphanumerics. Both conditions are needed: noise scores very high on si
 from __future__ import annotations
 
 import asyncio
-import io
 import os
+import tempfile
 from typing import Literal
 
 from fastapi import APIRouter, Request
@@ -24,24 +24,24 @@ from ..errors import McsError, TOOL_FAILED, UNSUPPORTED
 from ..schemas import FileRef, WithOptions
 from ..streaming import Outcome, Progress, run_op
 from ..tools.decode import is_raw
-from ..tools.run import NICE
+from ..tools.run import require, run
 from ..tools.versions import tool_version
 from .media import kind_of
 
 # Tesseract parallelises one page across cores with OpenMP (four threads by default), for a
 # gain of a few percent; in the tool lane that is four threads per slot on a box that is also
 # decoding, encoding and running models. One thread per OCR, like every other tool here. Set
-# on the front's own environment because pytesseract spawns the binary with it; the model
+# on the front's own environment, which `tools/run.py` hands to every tool it spawns; the model
 # worker is spawned without it (worker.TOOL_ONLY_ENV), since torch on the CPU wants the cores.
 os.environ.setdefault("OMP_THREAD_LIMIT", "1")
 
-# And at the tools' priority, like every other tool here. pytesseract spawns the binary itself
-# rather than through tools/run.py, so it does not get that wrapper's `nice -n 10` for free;
-# `nice=` is its own way of prepending the same thing. Without it a document crawl ran four
-# tesseracts at the front's priority on a six-core host — load average 22 — and the model
-# worker, which needs a few milliseconds of CPU to answer an embed, could not get scheduled
-# inside a search box's two-second budget.
-OCR_NICE = NICE
+# tesseract used to be spawned by pytesseract from inside a thread. That cost it the tools
+# wrapper's `nice -n 10` (a document crawl once ran four tesseracts at the front's priority on
+# a six-core host — load average 22 — and the model worker could not get scheduled inside a
+# search box's two-second budget), and it made the run uncancellable: a caller that gave up
+# and closed its connection reached the op's task, not a subprocess owned by a thread, so the
+# binary ran on as an orphan holding the tools slot. It goes through `tools/run.py` now like
+# every other tool: niced, in its own process group, and killed on timeout or cancellation.
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ODT = "application/vnd.oasis.opendocument.text"
@@ -61,6 +61,10 @@ MIN_WORD_CONF = float(os.environ.get("MCS_OCR_MIN_WORD_CONF", "60"))
 # photo is the honest answer; a scanned page that genuinely needs longer is what the setting
 # is for.
 OCR_TIMEOUT_SECONDS = float(os.environ.get("MCS_OCR_TIMEOUT_SECONDS", "120"))
+
+# What leptonica opens on its own. Anything else (HEIC, an odd TIFF) is decoded by PIL into a
+# PNG for the run. MPO is a JPEG with extra frames; leptonica reads the first.
+TESSERACT_READS = frozenset(["JPEG", "MPO", "PNG", "TIFF", "BMP", "GIF", "WEBP", "PNM", "PPM"])
 MIN_WORD_CHARS = 2
 DEFAULT_LANGUAGES = ("swe", "eng")
 
@@ -84,37 +88,90 @@ def is_permanent(exc: Exception) -> bool:
     return f"{type(exc).__module__}.{type(exc).__name__}" in PERMANENT_ERRORS
 
 
-def _ocr_page(page, index: int, lang: str) -> str:
-    import fitz
-    import pytesseract
-    from PIL import Image
+async def tesseract(source: str, lang: str, *, tsv: bool) -> str | None:
+    """One tesseract run over an image file: its stdout, or None when it ran out of time.
 
+    A timeout is not an error here — see OCR_TIMEOUT_SECONDS — but a cancelled request still
+    propagates, with the process group already killed by `run`.
+    """
+    args = [require("tesseract"), source, "stdout", "-l", lang, *(["tsv"] if tsv else [])]
     try:
-        pixmap = page.get_pixmap(matrix=fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72))
-        image = Image.open(io.BytesIO(pixmap.tobytes("png")))
-        return pytesseract.image_to_string(image, lang=lang, nice=OCR_NICE, timeout=OCR_TIMEOUT_SECONDS).strip()
+        done = await run(args, timeout=OCR_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        return None
+    if done.code != 0:
+        raise McsError(TOOL_FAILED, f"tesseract failed: {done.tail() or f'exit {done.code}'}")
+    return done.stdout.decode(errors="replace")
+
+
+def parse_tsv(text: str) -> dict[str, list]:
+    """tesseract's `tsv` output as columns, the shape pytesseract's `image_to_data` gave."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return {"text": [], "conf": [], "page_num": [], "block_num": [], "par_num": [], "line_num": []}
+    header = lines[0].split("\t")
+    columns: dict[str, list] = {name: [] for name in header}
+    for line in lines[1:]:
+        cells = line.split("\t")
+        if len(cells) < len(header):
+            cells += [""] * (len(header) - len(cells))
+        for name, cell in zip(header, cells):
+            if name == "text":
+                columns[name].append(cell)
+            elif name == "conf":
+                columns[name].append(float(cell) if cell not in ("", "-") else -1.0)
+            else:
+                columns[name].append(int(cell) if cell.lstrip("-").isdigit() else 0)
+    return columns
+
+
+def _pixmap_png(page) -> bytes:
+    import fitz
+
+    return page.get_pixmap(matrix=fitz.Matrix(OCR_DPI / 72, OCR_DPI / 72)).tobytes("png")
+
+
+async def _ocr_page(page, lang: str) -> str:
+    try:
+        png = await asyncio.to_thread(_pixmap_png, page)
     except Exception:  # noqa: BLE001 - OCR is a bonus, never fatal
         return ""
+    with tempfile.NamedTemporaryFile(prefix="mcs-ocr-", suffix=".png", delete=False) as handle:
+        handle.write(png)
+        source = handle.name
+    try:
+        try:
+            out = await tesseract(source, lang, tsv=False)
+        except McsError:
+            return ""
+        return (out or "").strip()
+    finally:
+        try:
+            os.unlink(source)
+        except OSError:
+            pass
 
 
-def extract_pdf(path: str, ocr: str, lang: str) -> tuple[str, int, str]:
+async def extract_pdf(path: str, ocr: str, lang: str) -> tuple[str, int, str]:
     import fitz
 
-    doc = fitz.open(path)
+    doc = await asyncio.to_thread(fitz.open, path)
     pages = len(doc)
     parts: list[str] = []
     ocr_pages = 0
-    for index, page in enumerate(doc):
-        text = page.get_text().strip() if ocr != "always" else ""
-        wants_ocr = ocr == "always" or (ocr == "auto" and len(text) < MIN_PAGE_TEXT_CHARS)
-        if wants_ocr and ocr_pages < MAX_OCR_PAGES:
-            recognised = _ocr_page(page, index, lang)
-            if len(recognised) > len(text):
-                text = recognised
-                ocr_pages += 1
-        if text:
-            parts.append(text)
-    doc.close()
+    try:
+        for page in doc:
+            text = (await asyncio.to_thread(page.get_text)).strip() if ocr != "always" else ""
+            wants_ocr = ocr == "always" or (ocr == "auto" and len(text) < MIN_PAGE_TEXT_CHARS)
+            if wants_ocr and ocr_pages < MAX_OCR_PAGES:
+                recognised = await _ocr_page(page, lang)
+                if len(recognised) > len(text):
+                    text = recognised
+                    ocr_pages += 1
+            if text:
+                parts.append(text)
+    finally:
+        doc.close()
     return "\n\n".join(parts), pages, "ocr" if ocr_pages and ocr_pages * 2 >= max(1, pages) else "pdf-text"
 
 
@@ -157,30 +214,39 @@ def _confident_text(data: dict) -> str:
     return "\n".join(" ".join(words) for _, words in sorted(lines.items())).strip()
 
 
-def extract_image(path: str, lang: str) -> tuple[str, int, str]:
-    import pytesseract
+def _ocr_source(path: str) -> tuple[str, bool]:
+    """The file tesseract should read for `path`: the file itself, or a PNG decoded by PIL.
+
+    Returns (source, temporary). Opening with PIL first is what applies the format check and
+    the bomb guard; the decode itself only happens for a format leptonica cannot read.
+    """
     from PIL import Image, ImageFile
-    from pytesseract import Output
 
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     # A high-dpi album scan trips PIL's decompression-bomb guard, which exists for untrusted
     # uploads this service never sees. Bounded rather than disabled so a corrupt header fails.
     Image.MAX_IMAGE_PIXELS = 500_000_000
-    image = Image.open(path)
+    with Image.open(path) as image:
+        if image.format in TESSERACT_READS:
+            return path, False
+        with tempfile.NamedTemporaryFile(prefix="mcs-ocr-", suffix=".png", delete=False) as handle:
+            image.convert("RGB").save(handle, format="PNG")
+            return handle.name, True
+
+
+async def extract_image(path: str, lang: str) -> tuple[str, int, str]:
+    source, temporary = await asyncio.to_thread(_ocr_source, path)
     try:
-        try:
-            data = pytesseract.image_to_data(image, lang=lang, nice=OCR_NICE, output_type=Output.DICT, timeout=OCR_TIMEOUT_SECONDS)
-        except TypeError:
-            # pytesseract accepts a fixed allowlist of PIL formats (MPO-wrapped JPEGs are not on
-            # it); convert() clears .format and it re-encodes as PNG instead.
-            data = pytesseract.image_to_data(image.convert("RGB"), lang=lang, nice=OCR_NICE, output_type=Output.DICT, timeout=OCR_TIMEOUT_SECONDS)
-    except RuntimeError as exc:
-        # pytesseract's timeout: the binary is killed and this is raised. No text, see
-        # OCR_TIMEOUT_SECONDS.
-        if "timeout" not in str(exc).lower():
-            raise
+        out = await tesseract(source, lang, tsv=True)
+    finally:
+        if temporary:
+            try:
+                os.unlink(source)
+            except OSError:
+                pass
+    if out is None:
         return "", 0, "ocr"
-    text = _confident_text(data)
+    text = _confident_text(parse_tsv(out))
     if sum(c.isalnum() for c in text) < MIN_IMAGE_TEXT_CHARS:
         return "", 0, "ocr"
     return text, 0, "ocr"
@@ -191,13 +257,13 @@ def extract_plaintext(path: str) -> tuple[str, int, str]:
         return handle.read().strip(), 0, "text"
 
 
-def extract(path: str, mimetype: str | None, ocr: str, lang: str) -> tuple[str, int, str]:
+async def extract(path: str, mimetype: str | None, ocr: str, lang: str) -> tuple[str, int, str]:
     if mimetype == "application/pdf":
-        return extract_pdf(path, ocr, lang)
+        return await extract_pdf(path, ocr, lang)
     if mimetype == DOCX:
-        return extract_docx(path)
+        return await asyncio.to_thread(extract_docx, path)
     if mimetype == ODT:
-        return extract_odt(path)
+        return await asyncio.to_thread(extract_odt, path)
     if is_raw(mimetype):
         # A sensor dump has no text to read, and PIL cannot open one: the libtiff reader
         # fails with an OSError ("Error setting from dictionary") that is not in
@@ -207,9 +273,9 @@ def extract(path: str, mimetype: str | None, ocr: str, lang: str) -> tuple[str, 
     if mimetype and mimetype.startswith("image/"):
         if ocr == "never":
             return "", 0, "ocr"
-        return extract_image(path, lang)
+        return await extract_image(path, lang)
     if mimetype and mimetype.startswith("text/"):
-        return extract_plaintext(path)
+        return await asyncio.to_thread(extract_plaintext, path)
     raise McsError(UNSUPPORTED, f"no text extractor for {mimetype or 'an unknown type'}")
 
 
@@ -229,7 +295,7 @@ async def run_extract(ctx: Context, req: DocumentRequest, progress: Progress) ->
             mimetype = mimetypes.guess_type(path)[0]
         await progress.emit("extract", message=kind_of(mimetype))
         try:
-            text, pages, method = await asyncio.to_thread(extract, path, mimetype, req.ocr, lang)
+            text, pages, method = await extract(path, mimetype, req.ocr, lang)
         except McsError:
             raise
         except Exception as exc:  # noqa: BLE001 - classified below

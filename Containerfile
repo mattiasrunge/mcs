@@ -178,7 +178,6 @@ RUN pip install --no-cache-dir \
     PyMuPDF \
     python-docx \
     odfpy \
-    pytesseract \
     transformers==5.16.1 \
     accelerate \
     bitsandbytes \

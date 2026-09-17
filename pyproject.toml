@@ -20,7 +20,6 @@ tools = [
   "PyMuPDF",
   "python-docx",
   "odfpy",
-  "pytesseract",
 ]
 test = ["pytest>=8", "httpx>=0.27"]
 
