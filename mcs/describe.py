@@ -5,8 +5,8 @@ version rides in every caption's provenance (`<model>/<version>`), and a caption
 under the same model and version must be comparable across the move.
 
 The captioner returns raw captions and whisper a transcript; these functions decide the prompt
-the captioner is asked, how a video's keyframe captions are joined, how what was seen and what
-was said become one paragraph, and how face geometry grounds the prompt without naming anyone.
+the captioner is asked, how a video's keyframe captions are joined, and how face geometry
+grounds the prompt without naming anyone.
 """
 
 from __future__ import annotations
@@ -15,16 +15,13 @@ from __future__ import annotations
 # description's provenance as `<model>/<version>`, so a caption's provenance names the prompt
 # that produced it and not just the weights; without it a prompt change is invisible.
 #
-# One version per kind rather than one for all, so a rewording of the video merge does not
+# One version per kind rather than one for all, so a rewording of the video prompt does not
 # mark every photograph stale: a caller re-describes what a bumped version covers and nothing
 # else. What each covers:
 #   image  PROMPT_IMAGE (and the face grounding appended to it)
-#   video  PROMPT_VIDEO, PROMPT_VIDEO_SUMMARY_SYSTEM, video_summary_prompt, and — because the
-#          spoken half is summarized with it — PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
+#   video  PROMPT_VIDEO
 #   audio  PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
-# So a change to the transcript summary bumps both audio and video; a change to the image
-# prompt bumps image alone.
-PROMPT_VERSIONS = {"image": "p4", "video": "p6", "audio": "p4"}
+PROMPT_VERSIONS = {"image": "p4", "video": "p7", "audio": "p4"}
 
 # What the captioner is asked for. The abstention clause is the load-bearing sentence: this
 # text is embedded and becomes what semantic search matches on, so a confidently wrong
@@ -43,36 +40,26 @@ PROMPT_IMAGE = (
 )
 
 # The video variant. Terser, because the frames are handed over together and described as one
-# clip rather than four stills.
+# clip rather than four stills. "Baby" is offered because a home archive is full of them and
+# the model otherwise guesses boy or girl for an infant it cannot tell apart.
 PROMPT_VIDEO = (
     "Describe this video clip for a family photo archive. Say what is visible across the frames: "
     "the setting, the objects, and what the people are doing. Call each person a man, woman, "
-    "boy or girl. Describe a facial expression or emotion only when it is unmistakable. Do not "
-    "guess names, exact ages or relationships. Write one or two plain sentences. Do not begin "
-    'with "The video shows".'
+    "boy, girl or baby. Describe a facial expression or emotion only when it is unmistakable. "
+    "Do not guess names, exact ages or relationships. Write one to three plain sentences. Do "
+    'not begin with "The video shows".'
 )
 
-# One description of a clip from what was seen and what was said, rather than the two stapled
-# together: frames and speech are halves of one event — but not equal halves. The frames are
-# what the clip is about; the spoken half arrives as a *summary* that names the activities
-# and events talked about, and a model asked merely to weigh it lightly still weaves them into
-# the scene (a baby on a bed whose parents mention toothbrushing became "a playful
-# toothbrushing moment"; even with the frames declared primary, the talk turned into "adults
-# prepare for her birthday party"). So the shape is fixed instead of the emphasis: the scene
-# first, in plain sentences, and what is talked about in one last sentence that says it is talk.
-PROMPT_VIDEO_SUMMARY_SYSTEM = (
-    "You describe a home video for a family archive. First, in one to three plain sentences, "
-    "say what happens on screen: the setting, who is there (a man, woman, boy, girl or baby) "
-    "and what they are doing. Use what is said only to fill in a name, a place or the occasion "
-    "when it clearly refers to what is on screen. Then, if the talk adds anything, end with one "
-    'sentence that begins "They talk about" and says what is talked about. Never describe '
-    "something that is only talked about as if it happens on screen. Do not quote, and do not "
-    "add mood or atmosphere unless it is unmistakable. Do not mention frames, transcripts, "
-    'subtitles or "the video". Reply with the description only.'
-)
+# A video's description is its frames alone. It used to be one paragraph merged from the
+# frames and a summary of what was said, and that never held: whatever the frames showed, the
+# model bent the scene toward the talk — a baby on a bed with a book, whose mother off camera
+# compared it to a toothbrush, became "a playful toothbrushing moment", and with the frames
+# declared primary, "a woman preparing to brush her teeth". The words are not lost: the
+# transcript is its own node, chunk-embedded and searchable, and a search for what was said
+# should land on the transcript, not on a clip's description that happens to echo it.
 
-# One paragraph saying what was said in a recording, for the description of an audio file (and
-# the spoken half of a video's). The words themselves stay in the transcript.
+# One paragraph saying what was said in a recording, for the description of an audio file. The
+# words themselves stay in the transcript.
 PROMPT_TRANSCRIPT_SUMMARY_SYSTEM = (
     "You summarize what is said in a home recording. Given a transcript, reply with a short "
     "paragraph saying what is talked about. Name the people, places, activities and events that "
@@ -82,10 +69,13 @@ PROMPT_TRANSCRIPT_SUMMARY_SYSTEM = (
 
 TOKENS_IMAGE = 256
 # The keyframes are captioned in one call that describes the whole clip, so this is the budget
-# for the entire video description rather than for one frame of four.
+# for the entire video description rather than for one frame of eight.
 TOKENS_VIDEO = 256
 TOKENS_SUMMARY = 160
-VIDEO_KEYFRAMES = 4
+# Eight rather than four since the frames became the whole description (2026-09-18): with the
+# spoken half gone, they are all a clip has, and four stills of a short clip missed what a
+# baby was holding. Roughly twice the VLM input per clip; the caption itself is seconds warm.
+VIDEO_KEYFRAMES = 8
 
 # Description used when an audio file carries no recognisable speech.
 NO_SPEECH = "Audio with no detected speech"
@@ -102,16 +92,6 @@ def join_video_captions(captions: list[str]) -> str:
         return captions[0]
     unique = list(dict.fromkeys(captions))
     return "Video showing: " + ". ".join(unique)
-
-
-def compose_description(visual: str, transcript: str) -> str:
-    """The fallback when no model can merge the two halves: what was seen, then what was said."""
-    return f"{visual}\n\nSpoken: {transcript}" if transcript else visual
-
-
-def video_summary_prompt(visual: str, transcript: str) -> str:
-    """The user half of the merge request. Empty speech is stated, so the model invents none."""
-    return f"What happens on screen: {visual}\n\nWhat is said meanwhile: {transcript or '(nothing audible)'}"
 
 
 def _position_of(box: dict, index: int, total: int) -> str:

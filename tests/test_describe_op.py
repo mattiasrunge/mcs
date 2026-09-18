@@ -86,7 +86,7 @@ async def test_audio_describe_uses_the_given_transcript_or_transcribes_itself(cl
     assert generate["messages"][1]["content"] == "we sailed to the island and back"
 
 
-async def test_video_describe_merges_frames_and_speech(client, fake_worker, roots, monkeypatch):
+async def test_video_describe_is_the_frames_alone(client, fake_worker, roots, monkeypatch):
     ro, _ = roots
     (ro / "v.mp4").write_bytes(b"mp4")
 
@@ -101,24 +101,16 @@ async def test_video_describe_merges_frames_and_speech(client, fake_worker, root
 
     monkeypatch.setattr(vision, "extract_frames", fake_frames)
     fake_worker.on("caption", lambda req: {"captions": ["People on a beach.", "People on a beach."], "model": "qwen3-vl-8b-instruct"})
-    fake_worker.on("generate", lambda req: {"text": "A day at the beach with the children.", "model": "qwen3-vl-8b-instruct"})
+    # The transcript is accepted and unused: a video's description is its frames alone, since
+    # every merge with the talk bent the scene toward it (see PROMPT_VIDEO in describe.py).
     r = await client.post("/v2/vision/describe", json={"file": {"path": str(ro / "v.mp4"), "mimetype": "video/mp4", "angle": 270}, "transcript": "Look at the waves!"})
     body = r.json()
     assert r.status_code == 200, body
-    assert body["result"]["description"] == "A day at the beach with the children."
-    assert body["result"]["stages"] == {"caption": "qwen3-vl-8b-instruct", "merge": "qwen3-vl-8b-instruct"}
-    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p6"
-    caption = [q for q in fake_worker.requests if q["op"] == "caption"][-1]
-    assert len(caption["paths"]) == 4 and caption["angle"] == 270 and caption["prompt"].startswith("Describe this video clip")
-    merge = [q for q in fake_worker.requests if q["op"] == "generate"][-1]
     # Two identical keyframe captions collapse to one, under the "Video showing:" lead the
     # multi-caption join has always used.
-    assert merge["messages"][1]["content"] == "What happens on screen: Video showing: People on a beach.\n\nWhat is said meanwhile: Look at the waves!"
-
-    # When the merge fails, the two halves are stapled, which is still a description.
-    def boom(req):
-        raise RuntimeError("cuda oom during generate")
-
-    fake_worker.on("generate", boom)
-    r = await client.post("/v2/vision/describe", json={"file": {"path": str(ro / "v.mp4"), "mimetype": "video/mp4"}, "transcript": "Look at the waves!"})
-    assert r.json()["result"]["description"] == "Video showing: People on a beach.\n\nSpoken: Look at the waves!"
+    assert body["result"]["description"] == "Video showing: People on a beach."
+    assert body["result"]["stages"] == {"caption": "qwen3-vl-8b-instruct"}
+    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p7"
+    caption = [q for q in fake_worker.requests if q["op"] == "caption"][-1]
+    assert len(caption["paths"]) == 8 and caption["angle"] == 270 and caption["prompt"].startswith("Describe this video clip")
+    assert not [q for q in fake_worker.requests if q["op"] == "generate"]

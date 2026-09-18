@@ -36,7 +36,6 @@ class FaceRef(Strict):
 class DescribePrompts(Strict):
     image: str | None = None
     video: str | None = None
-    summary: str | None = None
 
 
 class DescribeRequest(WithOptions):
@@ -45,7 +44,8 @@ class DescribeRequest(WithOptions):
     # caption in how many people there are and where, never in who.
     faces: list[FaceRef] | None = None
     # What is said, when the caller already has it (a transcript's summary). Without it MCS
-    # transcribes and summarizes the file itself.
+    # transcribes and summarizes an audio file itself. A video's description is its frames alone
+    # (see PROMPT_VIDEO in describe.py), so for one this is accepted and unused.
     transcript: str | None = None
     prompt: DescribePrompts | None = None
     max_new_tokens: int | None = Field(default=None, ge=1, le=2048)
@@ -185,45 +185,13 @@ async def describe(ctx: Context, req: DescribeRequest, progress: Progress) -> Ou
             await progress.emit("caption", message=f"{len(frames)} keyframes")
             raw = await caption_paths(ctx, [f["path"] for f in frames], prompts.video or rules.PROMPT_VIDEO, req.max_new_tokens or rules.TOKENS_VIDEO, req.file.angle, req.file.mirror, mimetype="image/jpeg", deadline=deadline)
             stages["caption"] = str(raw.get("model") or "vlm")
-            seen = rules.join_video_captions([str(c) for c in (raw.get("captions") or [])])
-
-            if req.transcript is not None:
-                spoken = req.transcript.strip()
-            else:
-                spoken, whisper, summary_model = await _transcript_summary(ctx, path, progress, deadline)
-                if whisper:
-                    stages["transcribe"] = whisper
-                if summary_model:
-                    stages["summary"] = summary_model
-
-            # One description from both halves, rather than the two stapled together — same
-            # model that captioned the frames. A merge that fails leaves the concatenation,
-            # which is a correct description, not a precondition for one.
-            description = rules.compose_description(seen, spoken)
-            await progress.emit("merge")
-            try:
-                merged = await ctx.worker.call(
-                    "generate",
-                    {
-                        "messages": [
-                            {"role": "system", "content": prompts.summary or rules.PROMPT_VIDEO_SUMMARY_SYSTEM},
-                            {"role": "user", "content": rules.video_summary_prompt(seen, spoken)},
-                        ],
-                        "max_new_tokens": req.max_new_tokens or rules.TOKENS_VIDEO,
-                        "json_only": False,
-                        "model": "vlm",
-                    },
-                    deadline=deadline,
-                )
-                if str(merged.get("text") or "").strip():
-                    description = str(merged["text"]).strip()
-                    stages["merge"] = str(merged.get("model") or "vlm")
-            except McsError:
-                pass
+            description = rules.join_video_captions([str(c) for c in (raw.get("captions") or [])])
+            if not description.strip():
+                raise McsError(UNSUPPORTED, f"{req.file.path}: the captioner produced nothing", permanent=False)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    producer = rules.model_name(f"{stages['caption']}/{rules.PROMPT_VERSIONS['video']}", stages.get("transcribe"), stages.get("summary"))
+    producer = f"{stages['caption']}/{rules.PROMPT_VERSIONS['video']}"
     return Outcome({"description": description, "prompt_version": rules.PROMPT_VERSIONS["video"], "stages": stages}, producer=producer)
 
 

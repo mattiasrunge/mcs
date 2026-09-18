@@ -466,29 +466,29 @@ A description of a photo, a video or a recording, in prose. The composite most c
 { "file": {…},
   "faces": [ { "box": {…} } ],
   "transcript": "…",
-  "prompt": { "image": "…", "video": "…", "summary": "…" },
+  "prompt": { "image": "…", "video": "…" },
   "max_new_tokens": 128 }
 ```
 
 - Routes on the file's kind. An image is captioned in the display frame. A video is captioned
-  from representative frames and merged with what is said; a recording is described from what is
-  said.
+  from representative frames — its frames alone, never merged with what is said: every such
+  merge bent the scene toward the talk, and the words are the transcript's to carry. A recording
+  is described from what is said.
 - `faces` (optional) grounds the caption in how many people there are and where, without
-  naming anyone. `transcript` (optional) is used as given; without it MCS transcribes the file
-  itself.
+  naming anyone. `transcript` (optional) is used as given for a recording, and accepted but
+  unused for a video; without it MCS transcribes a recording itself.
 - `prompt` overrides MCS's defaults per stage; the defaults are versioned and named in
   `meta.producer`.
 
-Result: `{ "description": "…", "prompt_version": "p4", "grounded_on": "faces:2@0.15,0.75", "stages": { "caption": "qwen3-vl-8b-instruct", "transcribe": "whisper-large-v3", "summary": "…", "merge": "…" } }`.
-`meta.producer` is `<caption model>/<prompt version>` for a picture or a clip, with the
-transcription and summary models joined on with `+` when MCS produced the spoken half itself
-— the string a caller stores as the description's provenance. `grounded_on` records what the
+Result: `{ "description": "…", "prompt_version": "p4", "grounded_on": "faces:2@0.15,0.75", "stages": { "caption": "qwen3-vl-8b-instruct", "transcribe": "whisper-large-v3", "summary": "…" } }`.
+`meta.producer` is `<caption model>/<prompt version>` for a picture or a clip, and the
+transcription and summary models joined with `+` for a recording — the string a caller stores
+as the description's provenance. `grounded_on` records what the
 caption was told about faces (count and rounded centres), so a later detection change is
 visible without re-reading the boxes. The prompts are MCS's and versioned per kind of file —
 `capabilities` reports them under `prompts.describe` as `{ image, video, audio }` — so a
-rewording of the video merge marks no photograph stale; the transcript summary is shared by
-audio and a clip's spoken half, so a change to it bumps both. A caller passing its own prompts
-owns their versioning. A picture the model readers cannot open (a RAW, an unusual HEIF) is decoded out of
+rewording of the video prompt marks no photograph stale. A caller passing its own prompts owns
+their versioning. A picture the model readers cannot open (a RAW, an unusual HEIF) is decoded out of
 process and captioned from that, with the turn owed worked out per family (§3.3).
 
 ### 4.19 `text.embed` *(implemented)*
@@ -551,7 +551,7 @@ What this MCS can do, for a caller to check before it relies on it:
   "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "…MiniLM-L12-v2", "whisper": "large-v3", "faces": "insightface/buffalo_l", "instruct": "…" },
   "limits": { "models": 8, "tools": 6, "encodes": 2, "queue_depth": 64, "interactive_reserve": 1 },
   "encode": { "video_encoder": "av1_nvenc", "cpu_budget": "4000/170/64" },
-  "prompts": { "describe": { "image": "p4", "video": "p6", "audio": "p4" } },
+  "prompts": { "describe": { "image": "p4", "video": "p7", "audio": "p4" } },
   "signatures": { "transcribe": "large-v3/…" } }
 ```
 
@@ -630,7 +630,7 @@ decides *when* anything runs. Nothing of that is MCS's business.
 | `transcribe-file` | `speech.transcribe` |
 | `voiceprint-file` | `speech.diarize`, `speech.voiceprint`, `speech.active_speaker` |
 | `describe-file` | `vision.describe` with `faces` from its face nodes and `transcript` from its transcript node |
-| `album-describe`, `query-parse`, video summary | `text.generate` |
+| `album-describe`, `query-parse` | `text.generate` |
 | `search-*`, `describe-file`, `index-document` embeddings | `text.embed` |
 | `index-document` | `document.extract` |
 | `inference-status`, `system-overview` | `system.health` |
