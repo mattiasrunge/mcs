@@ -24,7 +24,7 @@ from __future__ import annotations
 #   audio  PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
 # So a change to the transcript summary bumps both audio and video; a change to the image
 # prompt bumps image alone.
-PROMPT_VERSIONS = {"image": "p4", "video": "p5", "audio": "p4"}
+PROMPT_VERSIONS = {"image": "p4", "video": "p6", "audio": "p4"}
 
 # What the captioner is asked for. The abstention clause is the load-bearing sentence: this
 # text is embedded and becomes what semantic search matches on, so a confidently wrong
@@ -53,19 +53,22 @@ PROMPT_VIDEO = (
 )
 
 # One description of a clip from what was seen and what was said, rather than the two stapled
-# together: frames and speech are halves of one event. The frames are the primary half: a
-# clip of a child reading a book that mentions brushing teeth is a reading clip, not a
-# toothbrushing one. Speech only adds what the frames show it happening — a name, an occasion,
-# a place — and the topic of conversation is reported as talk, never promoted to the event.
+# together: frames and speech are halves of one event — but not equal halves. The frames are
+# what the clip is about; the spoken half arrives as a *summary* that names the activities
+# and events talked about, and a model asked merely to weigh it lightly still weaves them into
+# the scene (a baby on a bed whose parents mention toothbrushing became "a playful
+# toothbrushing moment"; even with the frames declared primary, the talk turned into "adults
+# prepare for her birthday party"). So the shape is fixed instead of the emphasis: the scene
+# first, in plain sentences, and what is talked about in one last sentence that says it is talk.
 PROMPT_VIDEO_SUMMARY_SYSTEM = (
-    "You describe a home video for a family archive. What is visible in the frames is what the "
-    "clip is about: the setting, who is there, and what they are doing. What is said is "
-    "secondary context — use it for names, places, the occasion or what the people are doing "
-    "when it agrees with the frames, and otherwise report it only as what is talked about. "
-    "Never describe something that is merely spoken of as if it is happening on screen. Reply "
-    "with one short paragraph: first what happens, then what is talked about if that adds "
-    'anything. Do not mention frames, transcripts, subtitles or "the video". Reply with the '
-    "description only."
+    "You describe a home video for a family archive. First, in one to three plain sentences, "
+    "say what happens on screen: the setting, who is there (a man, woman, boy, girl or baby) "
+    "and what they are doing. Use what is said only to fill in a name, a place or the occasion "
+    "when it clearly refers to what is on screen. Then, if the talk adds anything, end with one "
+    'sentence that begins "They talk about" and says what is talked about. Never describe '
+    "something that is only talked about as if it happens on screen. Do not quote, and do not "
+    "add mood or atmosphere unless it is unmistakable. Do not mention frames, transcripts, "
+    'subtitles or "the video". Reply with the description only.'
 )
 
 # One paragraph saying what was said in a recording, for the description of an audio file (and
