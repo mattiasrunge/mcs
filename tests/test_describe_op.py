@@ -107,7 +107,7 @@ async def test_video_describe_merges_frames_and_speech(client, fake_worker, root
     assert r.status_code == 200, body
     assert body["result"]["description"] == "A day at the beach with the children."
     assert body["result"]["stages"] == {"caption": "qwen3-vl-8b-instruct", "merge": "qwen3-vl-8b-instruct"}
-    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p5"
+    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p6"
     caption = [q for q in fake_worker.requests if q["op"] == "caption"][-1]
     assert len(caption["paths"]) == 4 and caption["angle"] == 270 and caption["prompt"].startswith("Describe this video clip")
     merge = [q for q in fake_worker.requests if q["op"] == "generate"][-1]
