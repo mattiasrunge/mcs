@@ -33,8 +33,8 @@ def test_joins_and_prompts():
     assert rules.join_video_captions(["a", "a", "b"]) == "Video showing: a. b"
     assert rules.compose_description("seen", "") == "seen"
     assert rules.compose_description("seen", "said") == "seen\n\nSpoken: said"
-    assert rules.video_summary_prompt("seen", "") == "Seen in the frames: seen\n\nSaid in the clip: (nothing audible)"
+    assert rules.video_summary_prompt("seen", "") == "What happens on screen: seen\n\nWhat is said meanwhile: (nothing audible)"
     assert rules.model_name("a", None, "b") == "a+b"
-    assert rules.PROMPT_VERSION == "p4"
+    assert rules.PROMPT_VERSIONS == {"image": "p4", "video": "p5", "audio": "p4"}
     assert rules.PROMPT_IMAGE.startswith("Describe this photograph for a family photo archive.")
     assert rules.PROMPT_IMAGE.endswith('Do not begin with "The image shows".')

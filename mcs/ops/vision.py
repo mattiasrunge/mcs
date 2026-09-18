@@ -156,8 +156,8 @@ async def describe(ctx: Context, req: DescribeRequest, progress: Progress) -> Ou
         if not captions or not str(captions[0]).strip():
             raise McsError(UNSUPPORTED, f"{req.file.path}: the captioner produced nothing", permanent=False)
         stages["caption"] = str(raw.get("model") or "vlm")
-        producer = f"{stages['caption']}/{rules.PROMPT_VERSION}"
-        result = {"description": str(captions[0]).strip(), "grounded_on": rules.grounded_on(boxes), "prompt_version": rules.PROMPT_VERSION, "stages": stages}
+        producer = f"{stages['caption']}/{rules.PROMPT_VERSIONS['image']}"
+        result = {"description": str(captions[0]).strip(), "grounded_on": rules.grounded_on(boxes), "prompt_version": rules.PROMPT_VERSIONS["image"], "stages": stages}
         return Outcome(result, producer=producer)
 
     if kind == "audio":
@@ -171,7 +171,7 @@ async def describe(ctx: Context, req: DescribeRequest, progress: Progress) -> Ou
                 if summary_model:
                     stages["summary"] = summary_model
         producer = rules.model_name(stages.get("transcribe"), stages.get("summary")) or "transcript"
-        result = {"description": spoken or rules.NO_SPEECH, "prompt_version": rules.PROMPT_VERSION, "stages": stages}
+        result = {"description": spoken or rules.NO_SPEECH, "prompt_version": rules.PROMPT_VERSIONS["audio"], "stages": stages}
         return Outcome(result, producer=producer)
 
     if kind != "video":
@@ -223,8 +223,8 @@ async def describe(ctx: Context, req: DescribeRequest, progress: Progress) -> Ou
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    producer = rules.model_name(f"{stages['caption']}/{rules.PROMPT_VERSION}", stages.get("transcribe"), stages.get("summary"))
-    return Outcome({"description": description, "prompt_version": rules.PROMPT_VERSION, "stages": stages}, producer=producer)
+    producer = rules.model_name(f"{stages['caption']}/{rules.PROMPT_VERSIONS['video']}", stages.get("transcribe"), stages.get("summary"))
+    return Outcome({"description": description, "prompt_version": rules.PROMPT_VERSIONS["video"], "stages": stages}, producer=producer)
 
 
 def register(router: APIRouter, ctx: Context) -> None:

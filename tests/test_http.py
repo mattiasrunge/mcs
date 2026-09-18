@@ -19,6 +19,8 @@ async def test_capabilities_lists_ops_and_roots(client):
     assert "faces.detect" in body["ops"] and "media.probe" in body["ops"]
     assert [root["mode"] for root in body["roots"]] == ["ro", "rw"]
     assert body["api"] == "2.0.0"
+    # Per kind, so a caller re-describes only the kind whose prompt moved.
+    assert set(body["prompts"]["describe"]) == {"image", "video", "audio"}
 
 
 async def test_validation_error_uses_the_envelope(client):

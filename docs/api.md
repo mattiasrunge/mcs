@@ -484,9 +484,11 @@ Result: `{ "description": "…", "prompt_version": "p4", "grounded_on": "faces:2
 transcription and summary models joined on with `+` when MCS produced the spoken half itself
 — the string a caller stores as the description's provenance. `grounded_on` records what the
 caption was told about faces (count and rounded centres), so a later detection change is
-visible without re-reading the boxes. The prompts are MCS's and versioned; `capabilities`
-reports the version under `prompts.describe`, and a caller passing its own prompts owns their
-versioning. A picture the model readers cannot open (a RAW, an unusual HEIF) is decoded out of
+visible without re-reading the boxes. The prompts are MCS's and versioned per kind of file —
+`capabilities` reports them under `prompts.describe` as `{ image, video, audio }` — so a
+rewording of the video merge marks no photograph stale; the transcript summary is shared by
+audio and a clip's spoken half, so a change to it bumps both. A caller passing its own prompts
+owns their versioning. A picture the model readers cannot open (a RAW, an unusual HEIF) is decoded out of
 process and captioned from that, with the turn owed worked out per family (§3.3).
 
 ### 4.19 `text.embed` *(implemented)*
@@ -549,14 +551,15 @@ What this MCS can do, for a caller to check before it relies on it:
   "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "…MiniLM-L12-v2", "whisper": "large-v3", "faces": "insightface/buffalo_l", "instruct": "…" },
   "limits": { "models": 8, "tools": 6, "encodes": 2, "queue_depth": 64, "interactive_reserve": 1 },
   "encode": { "video_encoder": "av1_nvenc", "cpu_budget": "4000/170/64" },
-  "prompts": { "describe": "p4" },
+  "prompts": { "describe": { "image": "p4", "video": "p5", "audio": "p4" } },
   "signatures": { "transcribe": "large-v3/…" } }
 ```
 
 `encode.video_encoder` is what `video.transcode` will run first, and `encode.cpu_budget` the
 signature of the CPU-decode budget a refusal is measured against — a caller that records
 refusals compares it to know when a raised budget has made them stale. `prompts.describe` is
-the version of the prompts `vision.describe` uses. `signatures.transcribe` is what a transcript
+the version of the prompts `vision.describe` uses, one per kind of file, so a caller
+re-describes only the kind whose prompt moved. `signatures.transcribe` is what a transcript
 decoded right now would be stamped with — every setting that decides `speech.transcribe`'s
 output, as one string — so a caller holding old transcripts can tell which were made with other
 settings; it is absent while the model worker is down.

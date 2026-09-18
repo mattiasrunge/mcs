@@ -133,9 +133,10 @@ def register(router: APIRouter, ctx: Context) -> None:
 
         return {
             "signatures": signatures,
-            # What `vision.describe` asks the models, versioned: a caption's provenance is
-            # `<model>/<version>`, and this is the half a caller cannot learn from the model name.
-            "prompts": {"describe": rules.PROMPT_VERSION},
+            # What `vision.describe` asks the models, versioned per kind of file: a caption's
+            # provenance is `<model>/<version>`, and this is the half a caller cannot learn from
+            # the model name. Per kind so a caller re-describes only what a bump covers.
+            "prompts": {"describe": dict(rules.PROMPT_VERSIONS)},
             "api": API_VERSION,
             "ops": [route.path.removeprefix("/v2/").replace("/", ".") for route in router.routes if "POST" in getattr(route, "methods", set())],
             "roots": ctx.roots.describe(),

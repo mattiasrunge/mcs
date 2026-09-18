@@ -11,10 +11,20 @@ was said become one paragraph, and how face geometry grounds the prompt without 
 
 from __future__ import annotations
 
-# Bumped whenever the prompt text below changes. It rides in the description's provenance as
-# `<model>/<version>`, so a caption's provenance names the prompt that produced it and not just
-# the weights; without it a prompt change is invisible.
-PROMPT_VERSION = "p4"
+# Bumped whenever the prompt text below changes, per kind of file. A version rides in the
+# description's provenance as `<model>/<version>`, so a caption's provenance names the prompt
+# that produced it and not just the weights; without it a prompt change is invisible.
+#
+# One version per kind rather than one for all, so a rewording of the video merge does not
+# mark every photograph stale: a caller re-describes what a bumped version covers and nothing
+# else. What each covers:
+#   image  PROMPT_IMAGE (and the face grounding appended to it)
+#   video  PROMPT_VIDEO, PROMPT_VIDEO_SUMMARY_SYSTEM, video_summary_prompt, and — because the
+#          spoken half is summarized with it — PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
+#   audio  PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
+# So a change to the transcript summary bumps both audio and video; a change to the image
+# prompt bumps image alone.
+PROMPT_VERSIONS = {"image": "p4", "video": "p5", "audio": "p4"}
 
 # What the captioner is asked for. The abstention clause is the load-bearing sentence: this
 # text is embedded and becomes what semantic search matches on, so a confidently wrong
@@ -43,12 +53,19 @@ PROMPT_VIDEO = (
 )
 
 # One description of a clip from what was seen and what was said, rather than the two stapled
-# together: frames and speech are halves of one event.
+# together: frames and speech are halves of one event. The frames are the primary half: a
+# clip of a child reading a book that mentions brushing teeth is a reading clip, not a
+# toothbrushing one. Speech only adds what the frames show it happening — a name, an occasion,
+# a place — and the topic of conversation is reported as talk, never promoted to the event.
 PROMPT_VIDEO_SUMMARY_SYSTEM = (
-    "You describe a home video for a family archive, from what is visible in its frames and what "
-    "is said in it. Reply with one short paragraph saying what the clip is about: the setting, "
-    "what happens, and what is talked about. Name people, places and activities that come up. "
-    'Do not mention frames, transcripts, subtitles or "the video". Reply with the description only.'
+    "You describe a home video for a family archive. What is visible in the frames is what the "
+    "clip is about: the setting, who is there, and what they are doing. What is said is "
+    "secondary context — use it for names, places, the occasion or what the people are doing "
+    "when it agrees with the frames, and otherwise report it only as what is talked about. "
+    "Never describe something that is merely spoken of as if it is happening on screen. Reply "
+    "with one short paragraph: first what happens, then what is talked about if that adds "
+    'anything. Do not mention frames, transcripts, subtitles or "the video". Reply with the '
+    "description only."
 )
 
 # One paragraph saying what was said in a recording, for the description of an audio file (and
@@ -91,7 +108,7 @@ def compose_description(visual: str, transcript: str) -> str:
 
 def video_summary_prompt(visual: str, transcript: str) -> str:
     """The user half of the merge request. Empty speech is stated, so the model invents none."""
-    return f"Seen in the frames: {visual}\n\nSaid in the clip: {transcript or '(nothing audible)'}"
+    return f"What happens on screen: {visual}\n\nWhat is said meanwhile: {transcript or '(nothing audible)'}"
 
 
 def _position_of(box: dict, index: int, total: int) -> str:
