@@ -551,7 +551,7 @@ What this MCS can do, for a caller to check before it relies on it:
   "models": { "vlm": "Qwen/Qwen3-VL-8B-Instruct@nf4", "embed": "…MiniLM-L12-v2", "whisper": "large-v3", "faces": "insightface/buffalo_l", "instruct": "…" },
   "limits": { "models": 8, "tools": 6, "encodes": 2, "queue_depth": 64, "interactive_reserve": 1 },
   "encode": { "video_encoder": "av1_nvenc", "cpu_budget": "4000/170/64" },
-  "prompts": { "describe": { "image": "p4", "video": "p7", "audio": "p4" } },
+  "prompts": { "describe": { "image": "p4", "video": "p8", "audio": "p4" } },
   "signatures": { "transcribe": "large-v3/…" } }
 ```
 

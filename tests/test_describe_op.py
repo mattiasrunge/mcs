@@ -110,7 +110,7 @@ async def test_video_describe_is_the_frames_alone(client, fake_worker, roots, mo
     # multi-caption join has always used.
     assert body["result"]["description"] == "Video showing: People on a beach."
     assert body["result"]["stages"] == {"caption": "qwen3-vl-8b-instruct"}
-    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p7"
+    assert body["meta"]["producer"] == "qwen3-vl-8b-instruct/p8"
     caption = [q for q in fake_worker.requests if q["op"] == "caption"][-1]
-    assert len(caption["paths"]) == 8 and caption["angle"] == 270 and caption["prompt"].startswith("Describe this video clip")
+    assert len(caption["paths"]) == 8 and caption["angle"] == 270 and caption["prompt"].startswith("These are moments from one short video clip")
     assert not [q for q in fake_worker.requests if q["op"] == "generate"]

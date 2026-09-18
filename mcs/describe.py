@@ -21,7 +21,7 @@ from __future__ import annotations
 #   image  PROMPT_IMAGE (and the face grounding appended to it)
 #   video  PROMPT_VIDEO
 #   audio  PROMPT_TRANSCRIPT_SUMMARY_SYSTEM
-PROMPT_VERSIONS = {"image": "p4", "video": "p7", "audio": "p4"}
+PROMPT_VERSIONS = {"image": "p4", "video": "p8", "audio": "p4"}
 
 # What the captioner is asked for. The abstention clause is the load-bearing sentence: this
 # text is embedded and becomes what semantic search matches on, so a confidently wrong
@@ -40,14 +40,16 @@ PROMPT_IMAGE = (
 )
 
 # The video variant. Terser, because the frames are handed over together and described as one
-# clip rather than four stills. "Baby" is offered because a home archive is full of them and
+# clip rather than eight stills — and told not to say "frames", which the model otherwise
+# echoes ("the baby remains in the same position across all frames"). "Baby" is offered because a home archive is full of them and
 # the model otherwise guesses boy or girl for an infant it cannot tell apart.
 PROMPT_VIDEO = (
-    "Describe this video clip for a family photo archive. Say what is visible across the frames: "
+    "These are moments from one short video clip. Describe the clip for a family photo archive: "
     "the setting, the objects, and what the people are doing. Call each person a man, woman, "
     "boy, girl or baby. Describe a facial expression or emotion only when it is unmistakable. "
-    "Do not guess names, exact ages or relationships. Write one to three plain sentences. Do "
-    'not begin with "The video shows".'
+    "Do not guess names, exact ages or relationships. Write one to three plain sentences about "
+    'the clip as a whole; do not mention frames or images, and do not begin with "The video '
+    'shows".'
 )
 
 # A video's description is its frames alone. It used to be one paragraph merged from the
